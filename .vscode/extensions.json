@@ -1,0 +1,14 @@
+{
+    "recommendations": [
+        "charliermarsh.ruff",
+        "streetsidesoftware.code-spell-checker",
+        "editorconfig.editorconfig",
+        "syler.ignore",
+        "davidanson.vscode-markdownlint",
+        "marklarah.pre-commit-vscode",
+        "ms-python.python",
+        "the-compiler.python-tox",
+        "sonarsource.sonarlint-vscode",
+        "redhat.vscode-yaml"
+    ]
+}
