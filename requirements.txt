@@ -1,2 +1,2 @@
-pydantic==1.10.7
+pydantic>=1.10.0
 kubernetes
