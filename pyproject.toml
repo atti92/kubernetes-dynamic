@@ -18,15 +18,15 @@ include-package-data = false
 
 [tool.setuptools.packages.find]
 namespaces = true
-exclude = ["*.tests", "*.tests.*", "tests.*", "tests", "kubernetes_dynamic.tests*", "kubernetes_dynamic.tests.*"]
-include = ["", "kubernetes_dynamic.*"]
+exclude = ["*.tests", "*.tests.*", "tests.*", "tests"]
+include = ["kubernetes_dynamic.*"]
 
 [tool.setuptools.dynamic]
 version = { attr = "kubernetes_dynamic._version.__version__" }
 dependencies = { file = "requirements.txt" }
 
 [tool.pytest.ini_options]
-testpaths = ["kubernetes_dynamic/tests"]
+testpaths = ["tests/"]
 
 [tool.poetry]
 name = "kubernetes-dynamic"
