@@ -76,22 +76,6 @@ class ResourceItem(ResourceValue):
         self._api: Optional[ResourceApi] = None
         self._client = client
 
-    @classmethod
-    def serialize(cls, client, instance: dict, **kwargs) -> Self | list[Self]:
-        """Serialize object from dictionary like objects."""
-        kind = instance["kind"]
-        if kind.endswith("List") and "items" in instance:
-            items = []
-            kind = instance["kind"][:-4]
-            for item in instance["items"]:
-                if "apiVersion" not in item:
-                    item["apiVersion"] = instance["apiVersion"]
-                if "kind" not in item:
-                    item["kind"] = kind
-                items.append(cls(item, client, **kwargs))
-            return items
-        return cls(instance, client, **kwargs)
-
     @property
     def api(self) -> ResourceApi:
         """Get resource api."""

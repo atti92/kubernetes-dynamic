@@ -12,11 +12,12 @@ from kubernetes import dynamic
 from kubernetes.client.api_client import ApiClient
 from kubernetes.client.configuration import Configuration
 from kubernetes.config import KUBE_CONFIG_DEFAULT_LOCATION, ConfigException
-from kubernetes.config.incluster_config import load_incluster_config
-from kubernetes.config.kube_config import (
-    _get_kube_config_loader,
-    list_kube_config_contexts,
+from kubernetes.config.incluster_config import (
+    SERVICE_CERT_FILENAME,
+    SERVICE_TOKEN_FILENAME,
+    InClusterConfigLoader,
 )
+from kubernetes.config.kube_config import KubeConfigLoader, _get_kube_config_loader
 
 from . import models
 from .config import K8sConfig
@@ -114,18 +115,37 @@ class K8sClient(dynamic.DynamicClient):
         return str(Path(KUBE_CONFIG_DEFAULT_LOCATION).expanduser().resolve())
 
     @staticmethod
-    def find_context(name: Optional[str] = None, config_file: Optional[str] = None):
+    def get_kube_config_loader(
+        config_file: Optional[str] = None, config_dict: Optional[dict] = None, context: Optional[str] = None
+    ) -> InClusterConfigLoader | KubeConfigLoader:
+        if not config_dict and not config_file:
+            config_file = K8sClient.get_config_file()
+        try:
+            in_cluster_loader = InClusterConfigLoader(
+                token_filename=SERVICE_TOKEN_FILENAME,
+                cert_filename=SERVICE_CERT_FILENAME,
+                try_refresh_token=True,
+            )
+            in_cluster_loader.load_and_set()
+            K8sClient.in_cluster = True
+            return in_cluster_loader
+        except ConfigException:
+            K8sClient.in_cluster = False
+            return _get_kube_config_loader(config_file, config_dict, active_context=context)
+
+    @staticmethod
+    def find_context(name: Optional[str], loader: KubeConfigLoader) -> Optional[str]:
         """Find a context by name, or get the default."""
-        contexts, curr_context = list_kube_config_contexts(config_file=config_file)
-        if not name and "context" in curr_context:
-            return curr_context
+        if not name:
+            return None
+        contexts = loader.list_contexts()
         for context in contexts:
             if not isinstance(context, dict):
                 continue
             if "context" not in context:
                 continue
             if context.get("name") == name or context["context"].get("cluster") == name:
-                return context
+                return context.get("name")
         raise RuntimeError(f"No context name='{name}' found!")
 
     def get_config(
@@ -142,17 +162,12 @@ class K8sClient(dynamic.DynamicClient):
             config_dict: Load config from dict instead of using a file.
             context: Set kube context.
         """
-
-        try:
-            load_incluster_config()
-            K8sClient.in_cluster = True
-            configuration = Configuration.get_default_copy()
-            return K8sConfig(configuration=configuration)
-        except ConfigException:
-            K8sClient.in_cluster = False
+        loader = K8sClient.get_kube_config_loader(config_file, config_dict, context=context)
+        if isinstance(loader, InClusterConfigLoader):
+            return K8sConfig(configuration=Configuration.get_default_copy())
         config_file = config_file or K8sClient.get_config_file()
-        selected_context = K8sClient.find_context(context, config_file)
-        loader = _get_kube_config_loader(config_file, config_dict, active_context=selected_context["name"])
+        context = K8sClient.find_context(context, loader)
+        loader.set_active_context(context)
         configuration = type.__call__(Configuration)
         loader.load_and_set(configuration)
         return K8sConfig(
