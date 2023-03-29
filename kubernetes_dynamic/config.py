@@ -4,7 +4,8 @@ from pathlib import Path
 from typing import Dict, Optional
 
 import pydantic
-from kubernetes.client.configuration import Configuration
+
+from ._kubernetes import Configuration
 
 
 class MutedSecretsSettingsSource:

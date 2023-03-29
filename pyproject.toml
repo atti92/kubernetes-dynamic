@@ -8,6 +8,22 @@ authors = [
     {name = "Attila Kobor", email = "atti92@gmail.com"},
     {name = "Balazs Hamorszky", email = "balihb@gmail.com"}
 ]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: Pydantic",
+    "Intended Audience :: Developers",
+    "License :: Freely Distributable",
+    "Programming Language :: Python :: 3",
+]
+
+license = {text = "BSD-3-Clause"}
+keywords = ["kubernetes", "client", "kubernetes-client", "kubernetes-dynamic", "dynamic"]
+
+[project.urls]
+homepage = "https://github.com/atti92/kubernetes-dynamic"
+documentation = "https://github.com/atti92/kubernetes-dynamic"
+repository = "https://github.com/atti92/kubernetes-dynamic.git"
+changelog = "https://github.com/atti92/kubernetes-dynamic/blob/main/README.md"
 
 [build-system]
 requires = ["setuptools"]

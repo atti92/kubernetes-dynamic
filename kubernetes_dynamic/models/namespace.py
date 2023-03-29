@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Dict
 
-from kubernetes.dynamic.exceptions import ConflictError
-
+from ..exceptions import ConflictError
 from ..resource import ResourceItem
 from .common import V1ObjectMeta
 
