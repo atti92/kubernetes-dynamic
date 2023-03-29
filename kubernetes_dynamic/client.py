@@ -4,7 +4,7 @@ import functools
 import inspect
 import json
 from pathlib import Path
-from typing import List, Optional, Type, Union
+from typing import List, Optional, Type, TypeVar, Union
 
 import pydantic
 import yaml
@@ -32,6 +32,7 @@ from .resource import ResourceItem
 from .resource_api import Event, ResourceApi
 
 SelectorTypes = Union[None, str, dict, list, tuple]
+T = TypeVar("T", bound=ResourceItem)
 
 
 def serialize_object(data, resource_api: Optional[ResourceApi] = None) -> ResourceItem | List[ResourceItem]:
@@ -179,11 +180,11 @@ class K8sClient(dynamic.DynamicClient):
     def get_api(
         self,
         name: Optional[str] = None,
-        object_type: Optional[Type] = None,
+        object_type: Optional[Type[T]] = None,
         api_version: Optional[str] = None,
         kind: Optional[str] = None,
         **filter_dict,
-    ) -> ResourceApi:
+    ) -> ResourceApi[T]:
         if api_version:
             filter_dict["api_version"] = api_version
         if kind:
