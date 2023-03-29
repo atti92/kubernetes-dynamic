@@ -17,6 +17,36 @@ for pod in pods:
     print(pod.metadata.name)
 ```
 
+### Custom resources
+
+```python
+import kubernetes_dynamic as kd
+
+class MyModel(kd.models.ResourceItem):
+    field: str
+
+
+client = kd.K8sClient()
+
+api: ResourceApi[MyModel] = cl.get_api("mycustomresources", MyModel)
+api: ResourceApi[MyModel] = cl.get_api(kind="MyCustomResource", object_type=MyModel)
+items: List[MyModel] = api.get()
+item: Optional[MyModel] = api.get(name="exact-name")
+if item:
+    item.field = "modified"
+    item.patch()
+else:
+    item = MyModel(metadata={"name": "exact-name", "namespace": "namespace-name"}, field="created")
+    item.create()
+    # item = MyModel(field="created")
+    # item.metadata.name = "exact-name"
+
+    # item = MyModel(metadata={"name": "exact-name"}, field="created")
+
+    # item = MyModel(metadata=kd.models.V1Metadata(name="exact-name"), field="created")
+    # item.create(namespace="namespace-name")
+```
+
 ## Models
 
 We aim to provide pydantic models for all reasources.
