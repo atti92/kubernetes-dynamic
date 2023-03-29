@@ -22,3 +22,9 @@ indent_size = 2
 
 [LICENSE]
 indent_size = unset
+
+[.gitignore]
+max_line_length = 400
+
+[GitVersion.yml]
+max_line_length = 180
