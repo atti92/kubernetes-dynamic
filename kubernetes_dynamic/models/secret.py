@@ -1,16 +1,13 @@
 from __future__ import annotations
 
 import base64
-import typing
 from typing import Dict, List, Tuple, Union, overload
 
 from pydantic import Field, PrivateAttr
 from typing_extensions import Literal
 
 from ..resource import ResourceItem
-
-if typing.TYPE_CHECKING:
-    from . import V1ObjectMeta
+from .common import V1ObjectMeta
 
 
 class V1Secret(ResourceItem):

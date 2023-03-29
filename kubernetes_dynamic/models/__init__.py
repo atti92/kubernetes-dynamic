@@ -7,7 +7,9 @@ import pydantic
 from pydantic import Field
 
 from ..resource import ResourceItem
-from ..resource_field import ResourceValue
+from ..resource_value import ResourceValue
+from .common import V1ManagedFieldsEntry as V1ManagedFieldsEntry
+from .common import V1ObjectMeta, V1OwnerReference
 from .configmap import V1ConfigMap
 from .ingress import V1Ingress as V1Ingress
 from .namespace import V1Namespace as V1Namespace
@@ -3396,41 +3398,6 @@ class V1TokenRequestSpec(ResourceValue):
     expirationSeconds: int
 
 
-class V1OwnerReference(ResourceItem):
-    blockOwnerDeletion: bool
-    controller: bool
-    name: str
-    uid: str
-
-
-class V1ManagedFieldsEntry(ResourceValue):
-    apiVersion: str
-    fieldsType: str
-    fieldsV1: object
-    manager: str
-    operation: str
-    subresource: str
-    time: datetime
-
-
-class V1ObjectMeta(ResourceValue):
-    annotations: Dict[str, str]
-    creationTimestamp: datetime
-    deletionGracePeriodSeconds: int
-    deletionTimestamp: datetime
-    finalizers: List[str]
-    generateName: str
-    generation: int
-    labels: Dict[str, str]
-    managedFields: List[V1ManagedFieldsEntry]
-    name: str
-    namespace: str
-    ownerReferences: List[V1OwnerReference]
-    resourceVersion: str
-    selfLink: str
-    uid: str
-
-
 class AuthenticationV1TokenRequest(ResourceItem):
     metadata: V1ObjectMeta
     spec: V1TokenRequestSpec
@@ -3885,11 +3852,7 @@ mapping = {
 
 
 def update_models(locals: dict[str, Any]):
-    models = [
-        model
-        for _, model in locals.items()
-        if isinstance(model, type) and issubclass(model, pydantic.BaseModel)
-    ]
+    models = [model for _, model in locals.items() if isinstance(model, type) and issubclass(model, pydantic.BaseModel)]
     for model in models:
         model.update_forward_refs(**locals)
 

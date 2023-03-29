@@ -3,9 +3,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ..resource import ResourceItem
+from .common import V1ObjectMeta
 
 if TYPE_CHECKING:
-    from . import V1ObjectMeta, V1PodSpec, V1PodStatus
+    from . import V1PodSpec, V1PodStatus
 
 
 class V1Pod(ResourceItem):

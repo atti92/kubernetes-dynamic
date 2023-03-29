@@ -9,12 +9,12 @@ from kubernetes import dynamic
 from kubernetes.dynamic.exceptions import NotFoundError
 from typing_extensions import Self
 
+from .models.common import V1ObjectMeta
 from .resource_api import ResourceApi
-from .resource_field import ResourceValue
+from .resource_value import ResourceValue
 
 if typing.TYPE_CHECKING:
     from .client import K8sClient
-    from .models import V1ObjectMeta
 
 
 class CheckResult:
@@ -38,7 +38,7 @@ class ResourceItem(ResourceValue):
 
     apiVersion: str
     kind: str
-    metadata: V1ObjectMeta
+    metadata: V1ObjectMeta = pydantic.Field(default_factory=V1ObjectMeta)
     status: ResourceValue
 
     _client: Optional[K8sClient] = pydantic.PrivateAttr()
@@ -146,7 +146,7 @@ class ResourceItem(ResourceValue):
         else:
             return CheckResult(
                 False,
-                f"{item.kind} {name} only have {ready_replicas} ready " f"replicas out of required {replicas}.",
+                f"{item.kind} {name} only have {ready_replicas} ready replicas out of required {replicas}.",
             )
 
     @staticmethod

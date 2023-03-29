@@ -5,9 +5,10 @@ from typing import TYPE_CHECKING, Dict
 from kubernetes.dynamic.exceptions import ConflictError
 
 from ..resource import ResourceItem
+from .common import V1ObjectMeta
 
 if TYPE_CHECKING:
-    from . import V1NamespaceSpec, V1NamespaceStatus, V1ObjectMeta
+    from . import V1NamespaceSpec, V1NamespaceStatus
 
 
 class V1Namespace(ResourceItem):

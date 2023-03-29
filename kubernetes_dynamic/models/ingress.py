@@ -3,9 +3,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Optional
 
 from ..resource import ResourceItem
+from .common import V1ObjectMeta
 
 if TYPE_CHECKING:
-    from . import V1IngressSpec, V1IngressStatus, V1ObjectMeta
+    from . import V1IngressSpec, V1IngressStatus
 
 
 class V1Ingress(ResourceItem):

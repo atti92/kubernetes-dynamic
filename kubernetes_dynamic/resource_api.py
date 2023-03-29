@@ -16,7 +16,7 @@ from typing import (
 from kubernetes.watch import Watch
 from typing_extensions import Protocol
 
-from .resource_field import ResourceValue
+from .resource_value import ResourceValue
 
 R = TypeVar("R", bound=ResourceValue)
 

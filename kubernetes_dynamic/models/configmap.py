@@ -3,12 +3,10 @@ from __future__ import annotations
 import base64
 import mimetypes
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict
+from typing import Dict
 
 from ..resource import ResourceItem
-
-if TYPE_CHECKING:
-    from . import V1ObjectMeta
+from .common import V1ObjectMeta
 
 
 class V1ConfigMap(ResourceItem):
