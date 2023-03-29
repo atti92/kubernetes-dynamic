@@ -8,20 +8,22 @@ from typing import List, Optional, Type, TypeVar, Union
 
 import pydantic
 import yaml
-from kubernetes import dynamic
-from kubernetes.client.api_client import ApiClient
-from kubernetes.client.configuration import Configuration
-from kubernetes.config import KUBE_CONFIG_DEFAULT_LOCATION, ConfigException
-from kubernetes.config.incluster_config import (
-    SERVICE_CERT_FILENAME,
-    SERVICE_TOKEN_FILENAME,
-    InClusterConfigLoader,
-)
-from kubernetes.config.kube_config import KubeConfigLoader, _get_kube_config_loader
 
 from . import models
+from ._kubernetes import (
+    KUBE_CONFIG_DEFAULT_LOCATION,
+    SERVICE_CERT_FILENAME,
+    SERVICE_TOKEN_FILENAME,
+    ApiClient,
+    Configuration,
+    InClusterConfigLoader,
+    KubeConfigLoader,
+    _get_kube_config_loader,
+    dynamic,
+)
 from .config import K8sConfig
 from .exceptions import (
+    ConfigException,
     ConflictError,
     InvalidParameter,
     NotFoundError,

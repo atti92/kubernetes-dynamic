@@ -5,10 +5,10 @@ import typing
 from typing import Optional
 
 import pydantic
-from kubernetes import dynamic
-from kubernetes.dynamic.exceptions import NotFoundError
 from typing_extensions import Self
 
+from ._kubernetes import dynamic
+from .exceptions import NotFoundError
 from .models.common import V1ObjectMeta
 from .resource_api import ResourceApi
 from .resource_value import ResourceValue

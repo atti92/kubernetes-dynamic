@@ -13,9 +13,9 @@ from typing import (
     overload,
 )
 
-from kubernetes.watch import Watch
 from typing_extensions import Protocol
 
+from ._kubernetes import Watch
 from .resource_value import ResourceValue
 
 R = TypeVar("R", bound=ResourceValue)

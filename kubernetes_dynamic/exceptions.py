@@ -1,9 +1,10 @@
-from kubernetes.dynamic.exceptions import ConflictError as ConflictError
-from kubernetes.dynamic.exceptions import NotFoundError as NotFoundError
-from kubernetes.dynamic.exceptions import (
+from ._kubernetes import ConfigException as ConfigException
+from ._kubernetes import ConflictError as ConflictError
+from ._kubernetes import NotFoundError as NotFoundError
+from ._kubernetes import (
     ResourceNotUniqueError as ResourceNotUniqueError,
 )
-from kubernetes.dynamic.exceptions import (
+from ._kubernetes import (
     UnprocessibleEntityError as UnprocessibleEntityError,
 )
 
