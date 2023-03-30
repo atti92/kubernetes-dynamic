@@ -93,11 +93,55 @@ def default_namespaced(func):
 class K8sClient(dynamic.DynamicClient):
     _loaded: bool = False
     in_cluster: bool = False
-    pods: ResourceApi[models.V1Pod]
-    events: ResourceApi[models.EventsV1Event]
-    secrets: ResourceApi[models.V1Secret]
-    ingresses: ResourceApi[models.V1Ingress]
+
+    componentstatuses: ResourceApi[models.V1ComponentStatus]
+    configmaps: ResourceApi[models.V1ConfigMap]
+    endpoints: ResourceApi[models.V1Endpoints]
+    events: ResourceApi[models.CoreV1Event]
+    limitranges: ResourceApi[models.V1LimitRange]
     namespaces: ResourceApi[models.V1Namespace]
+    nodes: ResourceApi[models.V1Node]
+    persistentvolumeclaims: ResourceApi[models.V1PersistentVolumeClaim]
+    persistentvolumes: ResourceApi[models.V1PersistentVolume]
+    pods: ResourceApi[models.V1Pod]
+    podtemplates: ResourceApi[models.V1PodTemplate]
+    replicationcontrollers: ResourceApi[models.V1ReplicationController]
+    resourcequotas: ResourceApi[models.V1ResourceQuota]
+    secrets: ResourceApi[models.V1Secret]
+    serviceaccounts: ResourceApi[models.V1ServiceAccount]
+    services: ResourceApi[models.V1Service]
+    mutatingwebhookconfigurations: ResourceApi[models.V1MutatingWebhookConfiguration]
+    validatingwebhookconfigurations: ResourceApi[models.V1ValidatingWebhookConfiguration]
+    customresourcedefinitions: ResourceApi[models.V1CustomResourceDefinition]
+    apiservices: ResourceApi[models.V1APIService]
+    controllerrevisions: ResourceApi[models.V1ControllerRevision]
+    daemonsets: ResourceApi[models.V1DaemonSet]
+    deployments: ResourceApi[models.V1Deployment]
+    replicasets: ResourceApi[models.V1ReplicaSet]
+    statefulsets: ResourceApi[models.V1StatefulSet]
+    horizontalpodautoscalers: ResourceApi[models.V1HorizontalPodAutoscaler]
+    cronjobs: ResourceApi[models.V1CronJob]
+    jobs: ResourceApi[models.V1Job]
+    certificatesigningrequests: ResourceApi[models.V1CertificateSigningRequest]
+    leases: ResourceApi[models.V1Lease]
+    endpointslices: ResourceApi[models.V1EndpointSlice]
+    flowschemas: ResourceApi[models.V1beta2FlowSchema]
+    prioritylevelconfigurations: ResourceApi[models.V1beta2PriorityLevelConfiguration]
+    ingressclasses: ResourceApi[models.V1IngressClass]
+    ingresses: ResourceApi[models.V1Ingress]
+    networkpolicies: ResourceApi[models.V1NetworkPolicy]
+    runtimeclasses: ResourceApi[models.V1RuntimeClass]
+    poddisruptionbudgets: ResourceApi[models.V1PodDisruptionBudget]
+    clusterrolebindings: ResourceApi[models.V1ClusterRoleBinding]
+    clusterroles: ResourceApi[models.V1ClusterRole]
+    rolebindings: ResourceApi[models.V1RoleBinding]
+    roles: ResourceApi[models.V1Role]
+    priorityclasses: ResourceApi[models.V1PriorityClass]
+    csidrivers: ResourceApi[models.V1CSIDriver]
+    csinodes: ResourceApi[models.V1CSINode]
+    csistoragecapacities: ResourceApi[models.V1CSIStorageCapacity]
+    storageclasses: ResourceApi[models.V1StorageClass]
+    volumeattachments: ResourceApi[models.V1VolumeAttachment]
 
     def __init__(
         self,
@@ -208,6 +252,10 @@ class K8sClient(dynamic.DynamicClient):
         if name.startswith("_"):
             raise AttributeError(name)
         return self.get_api(name)
+
+    @property
+    def events_events(self) -> ResourceApi[models.EventsV1Event]:
+        return self.get_api("events", object_type=models.EventsV1Event, api_version="events.k8s.io/v1")
 
     @staticmethod
     def _format_dict_selector(selector: dict):
