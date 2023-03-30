@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+from collections import UserList
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, TypeVar
+
+import pydantic
 
 from ..resource_value import ResourceValue
+
+R = TypeVar("R", bound=ResourceValue)
 
 
 class V1ManagedFieldsEntry(ResourceValue):
@@ -41,3 +46,17 @@ class V1ObjectMeta(ResourceValue):
     resourceVersion: str
     selfLink: str
     uid: str
+
+
+class V1ListMeta(ResourceValue):
+    remainingItemCount: int
+    resourceVersion: str
+    selfLink: str
+
+
+class ItemList(UserList[R]):
+    metadata: V1ListMeta
+
+    def __init__(self, initlist, metadata):
+        self.metadata = pydantic.parse_obj_as(V1ListMeta, metadata)
+        super().__init__(initlist)

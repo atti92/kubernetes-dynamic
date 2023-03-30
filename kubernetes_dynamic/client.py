@@ -10,6 +10,7 @@ import pydantic
 import yaml
 
 from kubernetes_dynamic.formatters import format_selector
+from kubernetes_dynamic.models.common import ItemList
 
 from . import _kubernetes, models
 from .config import K8sConfig
@@ -28,7 +29,7 @@ from .resource_api import Event, ResourceApi
 T = TypeVar("T", bound=ResourceItem)
 
 
-def serialize_object(data, resource_api: Optional[ResourceApi] = None) -> ResourceItem | List[ResourceItem]:
+def serialize_object(data, resource_api: Optional[ResourceApi] = None) -> ResourceItem | ItemList[ResourceItem]:
     kind = data["kind"]
     api_version = data["apiVersion"]
 
@@ -42,16 +43,19 @@ def serialize_object(data, resource_api: Optional[ResourceApi] = None) -> Resour
         for item in data["items"]:
             item.setdefault("apiVersion", api_version)
             item.setdefault("kind", kind)
-        return pydantic.parse_obj_as(List[obj_type], data["items"])
+        items = pydantic.parse_obj_as(List[obj_type], data["items"])
+        return ItemList(items, metadata=data["metadata"])
     return pydantic.parse_obj_as(obj_type, data)
 
 
 def serialize(func):
     @functools.wraps(func)
-    def wrapped(client: K8sClient, resource_api: ResourceApi, *args, **kwargs):
+    def wrapped(client: K8sClient, resource_api: ResourceApi, *args, serialize=True, **kwargs):
         response = func(client, resource_api, *args, serialize=False, **kwargs)
         if not response:
             return None
+        if not serialize:
+            return response
         data = json.loads(response.data)
         return serialize_object(data, resource_api)
 
@@ -61,7 +65,7 @@ def serialize(func):
 def default_namespaced(func):
     @functools.wraps(func)
     def wrapped(client: K8sClient, resource: ResourceApi, *args, **kwargs):
-        if not resource.namespaced:
+        if not resource.namespaced or "namespace" in kwargs:
             return func(client, resource, *args, **kwargs)
         params = inspect.signature(func).parameters
         namespace_param = params.get("namespace")
@@ -308,10 +312,13 @@ class K8sClient(_kubernetes.dynamic.DynamicClient):
         watcher=None,
         **kwargs,
     ):
+        if name:
+            field_selector = field_selector or ""
+            field_selector += f",metadata.name={name}"
         for item in super().watch(
             resource,
             namespace,
-            name,
+            None,
             label_selector,
             field_selector,
             resource_version,

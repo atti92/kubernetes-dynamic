@@ -8,6 +8,7 @@ from pydantic import Field
 
 from ..resource import ResourceItem
 from ..resource_value import ResourceValue
+from .common import V1ListMeta as V1ListMeta
 from .common import V1ManagedFieldsEntry as V1ManagedFieldsEntry
 from .common import V1ObjectMeta, V1OwnerReference
 from .configmap import V1ConfigMap
@@ -3333,12 +3334,6 @@ class EventsV1Event(ResourceItem):
     reportingInstance: str
     series: EventsV1EventSeries
     type: str
-
-
-class V1ListMeta(ResourceValue):
-    remainingItemCount: int
-    resourceVersion: str
-    selfLink: str
 
 
 class CoreV1EventList(ResourceItem):

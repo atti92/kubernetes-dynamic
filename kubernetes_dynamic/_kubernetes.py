@@ -19,4 +19,5 @@ from kubernetes.dynamic.exceptions import (
 from kubernetes.dynamic.exceptions import (
     UnprocessibleEntityError as UnprocessibleEntityError,
 )
+from kubernetes.dynamic.exceptions import DynamicApiError as DynamicApiError
 from kubernetes.watch import Watch as Watch

@@ -7,6 +7,7 @@ from ._kubernetes import (
 from ._kubernetes import (
     UnprocessibleEntityError as UnprocessibleEntityError,
 )
+from ._kubernetes import DynamicApiError as DynamicApiError
 
 
 class InvalidParameter(Exception):

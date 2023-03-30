@@ -14,6 +14,7 @@ from typing import (
 from typing_extensions import Protocol
 
 from kubernetes_dynamic.kube_event import Event
+from kubernetes_dynamic.models.common import ItemList
 
 from . import _kubernetes
 from .resource_value import ResourceValue
@@ -52,7 +53,7 @@ class ResourceApi(Protocol[R]):
         label_selector: Optional[str] = None,
         field_selector: Optional[str] = None,
         **kwargs,
-    ) -> List[R]:
+    ) -> ItemList[R]:
         ...  # pragma: no cover
 
     @overload
@@ -75,7 +76,7 @@ class ResourceApi(Protocol[R]):
         label_selector: str,
         field_selector: Optional[str] = None,
         **kwargs,
-    ) -> List[R]:
+    ) -> ItemList[R]:
         ...  # pragma: no cover
 
     @overload
@@ -87,7 +88,7 @@ class ResourceApi(Protocol[R]):
         label_selector: Optional[str] = None,
         field_selector: str,
         **kwargs,
-    ) -> List[R]:
+    ) -> ItemList[R]:
         ...  # pragma: no cover
 
     def replace(self, body: dict | R, name: Optional[str] = None, namespace: Optional[str] = None, **kwargs) -> R:
