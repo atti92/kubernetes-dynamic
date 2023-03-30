@@ -74,15 +74,15 @@ def test_pod_disk_usage(mock_client):
     pod = V1Pod(metadata={"name": "my_pod"})
     mock_client.stream.return_value = """    Used 1K-blocks    Avail Use% Mounted on
 12370080 104845292 92475212  12% /
-       0     65536    65536   0% /dev
-       0  16440724 16440724   0% /sys/fs/cgroup
+        0     65536    65536   0% /dev
+        0  16440724 16440724   0% /sys/fs/cgroup
 12370080 104845292 92475212  12% /tmp
-       0     65536    65536   0% /dev/shm
-       8  32022312 32022304   1% /opt/kx/lic
-      12  32022312 32022300   1% /run/secrets/kubernetes.io/serviceaccount
-       0  16440724 16440724   0% /proc/acpi
-       0  16440724 16440724   0% /proc/scsi
-       0  16440724 16440724   0% /sys/firmware"""
+        0     65536    65536   0% /dev/shm
+        8  32022312 32022304   1% /opt/kx/lic
+        12  32022312 32022300   1% /run/secrets/kubernetes.io/serviceaccount
+        0  16440724 16440724   0% /proc/acpi
+        0  16440724 16440724   0% /proc/scsi
+        0  16440724 16440724   0% /sys/firmware"""
     assert pod.disk_usage("container") == {
         "/": {"used": 12370080, "size": 104845292, "avail": 92475212, "pcent": 12},
         "/dev": {"used": 0, "size": 65536, "avail": 65536, "pcent": 0},

@@ -28,3 +28,9 @@ max_line_length = 400
 
 [GitVersion.yml]
 max_line_length = 180
+
+[README.md]
+max_line_length = 180
+
+[tox.ini]
+max_line_length = 180
