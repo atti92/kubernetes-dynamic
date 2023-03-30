@@ -14,6 +14,7 @@ from kubernetes_dynamic.client import (
     default_namespaced,
 )
 from kubernetes_dynamic.exceptions import InvalidParameter
+from kubernetes_dynamic.formatters import format_selector
 from kubernetes_dynamic.models.pod import V1Pod
 from kubernetes_dynamic.resource_value import ResourceValue
 
@@ -156,7 +157,7 @@ def test_k8s_client_getattr(mock_resources: MagicMock):
 )
 def test_k8s_client_format_selector(selector, output: str):
     """Test label selector formatting."""
-    assert K8sClient.format_selector(selector) == output
+    assert format_selector(selector) == output
 
 
 def test_k8s_client_get(mock_dclient: MagicMock):

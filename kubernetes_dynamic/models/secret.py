@@ -81,6 +81,13 @@ class V1Secret(ResourceItem):
         except KeyError:
             return ""
 
+    def decode_all(self) -> dict[str, bytes]:
+        """Return decoded secret data."""
+        decoded_data = {}
+        for key in self.data:
+            decoded_data[key] = self.decode(key, encoding="bytes")
+        return decoded_data
+
     def set(self, key: str, value: str | bytes, encoding: str = "utf-8"):
         """Add an item to the secret and encode it."""
         if isinstance(value, str):

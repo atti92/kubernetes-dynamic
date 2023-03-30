@@ -4,25 +4,27 @@ import functools
 import inspect
 import json
 from pathlib import Path
-from typing import List, Optional, Type, TypeVar, Union
+from typing import Callable, List, Optional, Type, TypeVar
 
 import pydantic
 import yaml
+
+from kubernetes_dynamic.formatters import format_selector
 
 from . import _kubernetes, models
 from .config import K8sConfig
 from .exceptions import (
     ConfigException,
     ConflictError,
+    EventTimeoutError,
     InvalidParameter,
     NotFoundError,
     ResourceNotUniqueError,
     UnprocessibleEntityError,
 )
-from .resource import ResourceItem
+from .resource import CheckResult, ResourceItem
 from .resource_api import Event, ResourceApi
 
-SelectorTypes = Union[None, str, dict, list, tuple]
 T = TypeVar("T", bound=ResourceItem)
 
 
@@ -249,53 +251,9 @@ class K8sClient(_kubernetes.dynamic.DynamicClient):
     def events_events(self) -> ResourceApi[models.EventsV1Event]:
         return self.get_api("events", object_type=models.EventsV1Event, api_version="events.k8s.io/v1")
 
-    @staticmethod
-    def _format_dict_selector(selector: dict):
-        items = []
-        for key, value in selector.items():
-            exists = True
-            if key.startswith("!"):
-                exists = False
-                key = key[1:]
-            if isinstance(value, (tuple, list)):
-                items.append(f"{key} {'in' if exists else 'notin'} ({K8sClient.format_selector(value)})")
-            elif isinstance(value, str):
-                items.append(f"{key}{'!' if not exists else ''}={value}")
-            elif not exists or value is False:
-                items.append(f"!{key}")
-            else:
-                items.append(key)
-        return K8sClient.format_selector(items)
-
-    @staticmethod
-    def format_selector(selector: SelectorTypes):
-        """Format kubernetes selector.
-
-        Args:
-            selector: The selector object to convert.
-                - string: no conversion done.
-                - list, tuple: the object is concatenated by `,`.
-                - dict:
-                    - key: string           -> key=string             # key equals string
-                    - !key: string          -> key!=string            # key not equals string
-                    - key: [val1, val2]     -> key in (val1, val2)    # key is val1 OR val2
-                    - !key: [val1, val2]    -> key notin (val1, val2) # key is NOT val1 AND NOT val2
-                    - key: True             -> key                    # key exists
-                    - key: False            -> !key                   # key NOT exists
-                    - !key: None            -> !key                   # key NOT exists
-
-        Returns:
-            Kubernetes compatible string selector
-        """
-        if isinstance(selector, (list, tuple)):
-            return ",".join(selector)
-        if isinstance(selector, dict):
-            return K8sClient._format_dict_selector(selector)
-        return selector
-
     @serialize
     @default_namespaced
-    def get(self, resource, name=None, namespace=None, **kwargs):
+    def get(self, resource: ResourceApi, name=None, namespace=None, **kwargs):
         try:
             return super().get(resource, name, namespace, **kwargs)
         except NotFoundError:
@@ -303,14 +261,14 @@ class K8sClient(_kubernetes.dynamic.DynamicClient):
 
     @serialize
     @default_namespaced
-    def create(self, resource, body=None, namespace=None, **kwargs):
+    def create(self, resource: ResourceApi, body=None, namespace=None, **kwargs):
         return super().create(resource, body, namespace, **kwargs)
 
     @serialize
     @default_namespaced
     def delete(
         self,
-        resource,
+        resource: ResourceApi,
         name=None,
         namespace=None,
         body=None,
@@ -322,23 +280,25 @@ class K8sClient(_kubernetes.dynamic.DynamicClient):
 
     @serialize
     @default_namespaced
-    def replace(self, resource, body=None, name=None, namespace=None, **kwargs):
+    def replace(self, resource: ResourceApi, body=None, name=None, namespace=None, **kwargs):
         return super().replace(resource, body, name, namespace, **kwargs)
 
     @serialize
     @default_namespaced
-    def patch(self, resource, body=None, name=None, namespace=None, **kwargs):
+    def patch(self, resource: ResourceApi, body=None, name=None, namespace=None, **kwargs):
         return super().patch(resource, body, name, namespace, **kwargs)
 
     @serialize
     @default_namespaced
-    def server_side_apply(self, resource, body=None, name=None, namespace=None, force_conflicts=None, **kwargs):
+    def server_side_apply(
+        self, resource: ResourceApi, body=None, name=None, namespace=None, force_conflicts=None, **kwargs
+    ):
         return super().server_side_apply(resource, body, name, namespace, force_conflicts, **kwargs)
 
     @default_namespaced
     def watch(
         self,
-        resource,
+        resource: ResourceApi,
         namespace=None,
         name=None,
         label_selector=None,
@@ -360,6 +320,42 @@ class K8sClient(_kubernetes.dynamic.DynamicClient):
         ):
             item["object"] = serialize_object(item["object"], resource)  # type: ignore
             yield Event(**item)  # type: ignore
+
+    def wait_until(
+        self,
+        resource: ResourceApi,
+        *,
+        namespace=None,
+        name=None,
+        check: Callable[[Event], CheckResult],
+        field_selector=None,
+        label_selector=None,
+        timeout: int = 30,
+        **kwargs,
+    ) -> Event:
+        """Wait until a certain custom check returns true for a resource returned by the stream."""
+        field_selectors = [] if not field_selector else [format_selector(field_selector)]
+        if name:
+            field_selectors.append(f"metadata.name={name}")
+
+        last = None
+        result = None
+        for event in resource.watch(
+            field_selector=format_selector(field_selectors),
+            label_selector=format_selector(label_selector),
+            timeout=timeout,
+            namespace=namespace,
+            **kwargs,
+        ):
+            last = event
+            result = check(event)
+            if result:
+                return event
+        if last is None:
+            raise EventTimeoutError(f"Timed out waiting for check. {self.kind} {name} not found.", last=last)
+        if result is not None and result.message:
+            raise EventTimeoutError(result.message, last=last)
+        raise EventTimeoutError(f"Timed out waiting for check on {self.kind} {name} .", last=last)
 
     def stream(self, method, name=None, namespace=None, *args, **kwargs):
         from kubernetes.stream.ws_client import WSResponse, websocket_call

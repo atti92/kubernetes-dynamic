@@ -11,3 +11,11 @@ from ._kubernetes import (
 
 class InvalidParameter(Exception):
     pass
+
+
+class EventTimeoutError(TimeoutError):
+    """Used when a waiting for an event times out."""
+
+    def __init__(self, *args, last):
+        super().__init__(*args)
+        self.last = last

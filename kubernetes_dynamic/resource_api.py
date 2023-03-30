@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import (
     Any,
-    Dict,
-    Generic,
     Iterator,
     List,
     Optional,
@@ -15,21 +13,15 @@ from typing import (
 
 from typing_extensions import Protocol
 
+from kubernetes_dynamic.kube_event import Event
+
 from . import _kubernetes
 from .resource_value import ResourceValue
 
 R = TypeVar("R", bound=ResourceValue)
 
 
-class Event(ResourceValue, Generic[R]):
-    """Kubernetes event object."""
-
-    type: str
-    raw_object: Dict[str, Any]
-    object: R
-
-
-class ResourceApi(Generic[R], Protocol):
+class ResourceApi(Protocol[R]):
     """See kubernetes.dynamic.Resource."""
 
     _resource_type: Type[R]

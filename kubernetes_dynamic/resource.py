@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import re
 import typing
-from typing import Optional
+from typing import Callable, Optional
 
 import pydantic
 from typing_extensions import Self
+
+from kubernetes_dynamic.kube_event import Event, EventType
 
 from . import _kubernetes
 from .exceptions import NotFoundError
@@ -38,7 +40,7 @@ class ResourceItem(ResourceValue):
 
     apiVersion: str
     kind: str
-    metadata: V1ObjectMeta = pydantic.Field(default_factory=V1ObjectMeta)
+    metadata: V1ObjectMeta = pydantic.Field(default_factory=V1ObjectMeta)  # type: ignore
     status: ResourceValue
 
     _client: Optional[K8sClient] = pydantic.PrivateAttr()
@@ -170,3 +172,53 @@ class ResourceItem(ResourceValue):
         if refresh:
             self.refresh()
         return self.check_object_is_ready(self)
+
+    def wait_until_status(self, status: str, timeout: int = 30) -> Event:
+        """Wait until the resource is in a specific status."""
+
+        def status_check(event: Event) -> CheckResult:
+            result = event.raw_object["status"]["phase"] == status and event.type != EventType.DELETED
+            if result:
+                message = f"{self.kind} {self.metadata.name} is {status}."
+            else:
+                message = f"Last status of {self.kind} {self.metadata.name}: {event.raw_object['status']['phase']}"
+            return CheckResult(result, message)
+
+        return self.wait_until(check=status_check, timeout=timeout)
+
+    def wait_until_ready(
+        self,
+        timeout: int = 30,
+        **kwargs,
+    ):
+        """Waiting until resource is ready."""
+        return self.wait_until(
+            check=lambda event: self.check_object_is_ready(event.object),
+            timeout=timeout,
+            **kwargs,
+        )
+
+    def wait_until_not_ready(
+        self,
+        timeout: int = 30,
+        **kwargs,
+    ) -> Event:
+        """Waiting until resource is not ready."""
+
+        def not_ready(event: Event) -> CheckResult:
+            result = self.check_object_is_ready(event.object)
+            return CheckResult(not result, result.message)
+
+        return self.wait_until(
+            check=not_ready,
+            timeout=timeout,
+            **kwargs,
+        )
+
+    def wait_until(self, check: Callable[[Event], CheckResult], timeout: int = 30, **kwargs) -> Event:
+        return self.client.wait_until(
+            self.api,
+            check=check,
+            timeout=timeout,
+            **kwargs,
+        )
