@@ -3,9 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, Optional
 
+from . import _kubernetes
 import pydantic
-
-from ._kubernetes import Configuration
 
 
 class MutedSecretsSettingsSource:
@@ -30,7 +29,7 @@ class MutedSecretsSettingsSource:
 class K8sConfig(pydantic.BaseSettings):
     """Kubernetes configuration options."""
 
-    configuration: Optional[Configuration] = None
+    configuration: Optional[_kubernetes.Configuration] = None
     context: str = pydantic.Field(default="", env="KUBE_CONTEXT")
     namespace: str = pydantic.Field(default="default", env=["NAMESPACE", "KUBE_NAMESPACE"])
     connection_timeout: int = pydantic.Field(default=10, env="KUBERNETES_CONNECTION_TIMEOUT")

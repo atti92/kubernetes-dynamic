@@ -30,7 +30,7 @@ class V1ConfigMap(ResourceItem):
 
     @classmethod
     def from_path(cls, name: str, namespace: str, file_path: str | Path):
-        """Instanciate a configmap from file."""
+        """Instantiate a configmap from file."""
         file_path = Path(file_path)
         data = {}
         binary_data = {}

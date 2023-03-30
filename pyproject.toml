@@ -42,7 +42,7 @@ version = { attr = "kubernetes_dynamic._version.__version__" }
 dependencies = { file = "requirements.txt" }
 
 [tool.pytest.ini_options]
-testpaths = ["tests/"]
+testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 120

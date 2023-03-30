@@ -15,7 +15,7 @@ from typing import (
 
 from typing_extensions import Protocol
 
-from ._kubernetes import Watch
+from . import _kubernetes
 from .resource_value import ResourceValue
 
 R = TypeVar("R", bound=ResourceValue)
@@ -122,7 +122,7 @@ class ResourceApi(Generic[R], Protocol):
         field_selector: Optional[str] = None,
         resource_version: Optional[str] = None,
         timeout: Optional[float] = None,
-        watcher: Optional[Watch] = None,
+        watcher: Optional[_kubernetes.Watch] = None,
     ) -> Iterator[Event[R]]:
         ...  # pragma: no cover
 

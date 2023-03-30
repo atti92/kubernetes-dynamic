@@ -7,7 +7,7 @@ from typing import Optional
 import pydantic
 from typing_extensions import Self
 
-from ._kubernetes import dynamic
+from . import _kubernetes
 from .exceptions import NotFoundError
 from .models.common import V1ObjectMeta
 from .resource_api import ResourceApi
@@ -46,16 +46,16 @@ class ResourceItem(ResourceValue):
 
     def __init__(
         self,
-        definition: dict | dynamic.ResourceInstance | dynamic.ResourceField | None = None,
+        definition: dict | _kubernetes.dynamic.ResourceInstance | _kubernetes.dynamic.ResourceField | None = None,
         client=None,
         **kwargs,
     ):
         final_def: dict = {}
         if isinstance(definition, dict):
             final_def = definition
-        elif isinstance(definition, dynamic.ResourceField):
+        elif isinstance(definition, _kubernetes.dynamic.ResourceField):
             final_def = definition.__dict__
-        elif isinstance(definition, dynamic.ResourceInstance):
+        elif isinstance(definition, _kubernetes.dynamic.ResourceInstance):
             final_def = definition.to_dict()  # type: ignore
             client = definition.client
         final_def.update(kwargs)

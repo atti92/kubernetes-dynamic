@@ -9,18 +9,7 @@ from typing import List, Optional, Type, TypeVar, Union
 import pydantic
 import yaml
 
-from . import models
-from ._kubernetes import (
-    KUBE_CONFIG_DEFAULT_LOCATION,
-    SERVICE_CERT_FILENAME,
-    SERVICE_TOKEN_FILENAME,
-    ApiClient,
-    Configuration,
-    InClusterConfigLoader,
-    KubeConfigLoader,
-    _get_kube_config_loader,
-    dynamic,
-)
+from . import _kubernetes, models
 from .config import K8sConfig
 from .exceptions import (
     ConfigException,
@@ -41,7 +30,7 @@ def serialize_object(data, resource_api: Optional[ResourceApi] = None) -> Resour
     kind = data["kind"]
     api_version = data["apiVersion"]
 
-    if resource_api and hasattr(resource_api, "_resource_type"):
+    if resource_api and hasattr(resource_api, "_resource_type") and resource_api._resource_type:
         obj_type = resource_api._resource_type
     else:
         obj_type = models.get_type(kind, api_version, ResourceItem)
@@ -59,6 +48,8 @@ def serialize(func):
     @functools.wraps(func)
     def wrapped(client: K8sClient, resource_api: ResourceApi, *args, **kwargs):
         response = func(client, resource_api, *args, serialize=False, **kwargs)
+        if not response:
+            return None
         data = json.loads(response.data)
         return serialize_object(data, resource_api)
 
@@ -90,7 +81,7 @@ def default_namespaced(func):
     return wrapped
 
 
-class K8sClient(dynamic.DynamicClient):
+class K8sClient(_kubernetes.dynamic.DynamicClient):
     _loaded: bool = False
     in_cluster: bool = False
 
@@ -145,32 +136,31 @@ class K8sClient(dynamic.DynamicClient):
 
     def __init__(
         self,
-        api_client: Optional[ApiClient] = None,
+        api_client: Optional[_kubernetes.ApiClient] = None,
         *,
         config_file: Optional[str] = None,
         config_dict: Optional[dict] = None,
         context: Optional[str] = None,
     ):
         self.config = self.get_config(config_file, config_dict=config_dict, context=context)
-        self.client = api_client or ApiClient(configuration=self.config.configuration)
-
+        self.client = api_client or _kubernetes.ApiClient(configuration=self.config.configuration)
         super().__init__(self.client)
 
     @staticmethod
     def get_config_file() -> str:
         """Get kube config file."""
-        return str(Path(KUBE_CONFIG_DEFAULT_LOCATION).expanduser().resolve())
+        return str(Path(_kubernetes.KUBE_CONFIG_DEFAULT_LOCATION).expanduser().resolve())
 
     @staticmethod
     def get_kube_config_loader(
         config_file: Optional[str] = None, config_dict: Optional[dict] = None, context: Optional[str] = None
-    ) -> InClusterConfigLoader | KubeConfigLoader:
+    ) -> _kubernetes.InClusterConfigLoader | _kubernetes.KubeConfigLoader:
         if not config_dict and not config_file:
             config_file = K8sClient.get_config_file()
         try:
-            in_cluster_loader = InClusterConfigLoader(
-                token_filename=SERVICE_TOKEN_FILENAME,
-                cert_filename=SERVICE_CERT_FILENAME,
+            in_cluster_loader = _kubernetes.InClusterConfigLoader(
+                token_filename=_kubernetes.SERVICE_TOKEN_FILENAME,
+                cert_filename=_kubernetes.SERVICE_CERT_FILENAME,
                 try_refresh_token=True,
             )
             in_cluster_loader.load_and_set()
@@ -178,10 +168,10 @@ class K8sClient(dynamic.DynamicClient):
             return in_cluster_loader
         except ConfigException:
             K8sClient.in_cluster = False
-            return _get_kube_config_loader(config_file, config_dict, active_context=context)
+            return _kubernetes._get_kube_config_loader(config_file, config_dict, active_context=context)
 
     @staticmethod
-    def find_context(name: Optional[str], loader: KubeConfigLoader) -> Optional[str]:
+    def find_context(name: Optional[str], loader: _kubernetes.KubeConfigLoader) -> Optional[str]:
         """Find a context by name, or get the default."""
         if not name:
             return None
@@ -210,12 +200,12 @@ class K8sClient(dynamic.DynamicClient):
             context: Set kube context.
         """
         loader = K8sClient.get_kube_config_loader(config_file, config_dict, context=context)
-        if isinstance(loader, InClusterConfigLoader):
-            return K8sConfig(configuration=Configuration.get_default_copy())
+        if isinstance(loader, _kubernetes.InClusterConfigLoader):
+            return K8sConfig(configuration=_kubernetes.Configuration.get_default_copy())
         config_file = config_file or K8sClient.get_config_file()
         context = K8sClient.find_context(context, loader)
         loader.set_active_context(context)
-        configuration = type.__call__(Configuration)
+        configuration = type.__call__(_kubernetes.Configuration)
         loader.load_and_set(configuration)
         return K8sConfig(
             configuration=configuration,
@@ -240,9 +230,11 @@ class K8sClient(dynamic.DynamicClient):
         try:
             api = self.resources.get(**filter_dict)
         except ResourceNotUniqueError:
-            api = [r for r in self.resources.search(**filter_dict) if r.preferred and isinstance(r, dynamic.Resource)][
-                0
-            ]
+            api = [
+                r
+                for r in self.resources.search(**filter_dict)
+                if r.preferred and isinstance(r, _kubernetes.dynamic.Resource)
+            ][0]
         api._resource_type = object_type or models.get_type(  # type: ignore
             str(api.kind), str(api.api_version), ResourceItem
         )
@@ -376,9 +368,9 @@ class K8sClient(dynamic.DynamicClient):
         try:
 
             def _websocket_call(*args, **kwargs):  # pragma: no cover
-                wsclient = websocket_call(self.configuration, *args, **kwargs)
-                wsclient.run_forever(timeout=kwargs.get("_request_timeout", 0))  # type: ignore
-                return WSResponse("%s" % "".join(wsclient.read_all()))  # type: ignore
+                ws_client = websocket_call(self.configuration, *args, **kwargs)
+                ws_client.run_forever(timeout=kwargs.get("_request_timeout", 0))  # type: ignore
+                return WSResponse("%s" % "".join(ws_client.read_all()))  # type: ignore
 
             self.client.request = _websocket_call
             return method(
