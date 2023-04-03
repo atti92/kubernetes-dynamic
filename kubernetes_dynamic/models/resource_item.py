@@ -56,9 +56,9 @@ class ResourceItem(ResourceValue):
         kind = final_def.get("kind") or self.kind or defaults.get("kind")
         if kind:
             final_def["kind"] = kind
-        apiVersion = final_def.get("apiVersion") or self.apiVersion or defaults.get("apiVersion")
-        if apiVersion:
-            final_def["apiVersion"] = apiVersion
+        api_version = final_def.get("apiVersion") or self.apiVersion or defaults.get("apiVersion")
+        if api_version:
+            final_def["apiVersion"] = api_version
 
         super().__init__(**final_def)
 

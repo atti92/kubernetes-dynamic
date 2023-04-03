@@ -5,7 +5,7 @@ from typing import Any, Dict, Generic, TypeVar
 import pydantic
 from urllib3 import HTTPResponse
 
-from kubernetes_dynamic.exceptions import GoneError
+from kubernetes_dynamic.exceptions import ApiException, api_exception
 from kubernetes_dynamic.models.resource_value import ResourceValue
 
 HTTP_STATUS_GONE = http.HTTPStatus.GONE
@@ -71,7 +71,7 @@ class Watch(object):
         self.resource_version = resource_version or self.resource_version
         self.timeout_seconds = timeout_seconds
         retry_after_410 = False
-        while True:
+        while not self._stop:
             resp: HTTPResponse = func(
                 *args,
                 resource_version=self.resource_version,
@@ -81,30 +81,28 @@ class Watch(object):
                 **kwargs,
             )
             try:
-                for line in resp:
-                    event = pydantic.parse_raw_as(Event, line)
-                    if event.type == EventType.ERROR:
-                        if not retry_after_410 and event.object.code == HTTP_STATUS_GONE:
-                            retry_after_410 = True
-                            break
-                        else:
-                            raise GoneError(event.object)
-                    else:
-                        event.object = self._return_type(event.object)
-                        self.resource_version = event.raw_object.get("metadata", {}).get("resourceVersion")
-                        retry_after_410 = False
-                        yield event
-                    if self._stop:
-                        break
+                yield from self._parse_response_iter(resp)
+            except ApiException as e:
+                if e.status == 410 and not retry_after_410:
+                    self.resource_version = func(*args, **kwargs).metadata.resourceVersion
+                    retry_after_410 = True
+                    continue
+                raise api_exception(e) from e
             finally:
                 resp.close()
                 resp.release_conn()
-                if retry_after_410:
-                    self.resource_version = func(*args, **kwargs).metadata.resourceVersion
-                elif timeout_seconds:  # ensure return if timeout_seconds is set
+                if timeout_seconds or self.resource_version is None:
                     self._stop = True
-                if self.resource_version is None:
-                    self._stop = True
+
+    def _parse_response_iter(self, resp: HTTPResponse):
+        for line in resp:
+            event = pydantic.parse_raw_as(Event, line)
+            if event.type == EventType.ERROR:
+                raise ApiException(event.object.code)
+
+            event.object = self._return_type(event.object)
+            self.resource_version = event.raw_object.get("metadata", {}).get("resourceVersion")
+            yield event
 
             if self._stop:
                 break

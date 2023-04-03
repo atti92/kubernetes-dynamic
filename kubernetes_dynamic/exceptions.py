@@ -17,6 +17,7 @@ __all__ = [
     "ServiceUnavailableError",
     "ServerTimeoutError",
     "ConfigException",
+    "api_exception"
 ]
 
 
@@ -39,6 +40,7 @@ from kubernetes.dynamic.exceptions import (
     TooManyRequestsError,
     UnauthorizedError,
     UnprocessibleEntityError,
+    api_exception,
 )
 
 

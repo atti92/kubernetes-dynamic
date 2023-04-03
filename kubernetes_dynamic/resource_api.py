@@ -128,7 +128,13 @@ class ResourceApi(Protocol[R]):
         **kwargs,
     ) -> ItemList[R] | R:
         return self.client.delete(
-            self, namespace=namespace, body=body, label_selector=label_selector, field_selector=field_selector, **kwargs
+            self,
+            name=name,
+            namespace=namespace,
+            body=body,
+            label_selector=label_selector,
+            field_selector=field_selector,
+            **kwargs,
         )  # pragma: no cover
 
     def replace(self, body: dict | R, name: Optional[str] = None, namespace: Optional[str] = None, **kwargs) -> R:
