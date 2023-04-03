@@ -16,6 +16,7 @@ def test_resource_init_dict():
 
 
 def test_resource_api(mock_client):
+    """Resource API test."""
     mock_client.get_api.return_value = MagicMock(api_version="v1", kind="Kind")
     item = ResourceItem(dict(apiVersion="v1", kind="Kind", key1="val1", key2={"subkey1": 3}, key3=[{"subl1": 4}]))
     assert item.api is item.api
