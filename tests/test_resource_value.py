@@ -13,7 +13,7 @@ def test_resource_field_init():
 def test_resource_dict_methods():
     item = ResourceValue(key1="val1", key2={"subkey1": 3}, key3=[{"subl1": 4}])
     assert item.to_dict() == dict(key1="val1", key2={"subkey1": 3}, key3=[{"subl1": 4}])
-    assert repr(item) == item.to_str()
+    assert str(item) == item.to_str()
     assert item.get("key1") == "val1"
     assert item.get("key6") is None
     item["key5"] = "newval"

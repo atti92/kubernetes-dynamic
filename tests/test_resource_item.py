@@ -54,7 +54,7 @@ def test_resource_delete(mock_client):
         ([], CheckResult(False, "No conditions found on Kind name.")),
         (
             [{"status": "False"}, {"status": "True"}],
-            CheckResult(False, "Condition not true on Kind name : status='False'."),
+            CheckResult(False, "Condition not true on Kind name : ResourceValue:\n  status: 'False'\n."),
         ),
         (
             [{"status": "True"}, {"status": "True"}],
