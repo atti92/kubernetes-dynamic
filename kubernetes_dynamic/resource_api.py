@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import typing
+from types import NoneType
 from typing import (
     Any,
     Iterator,
@@ -18,6 +19,7 @@ from kubernetes_dynamic.events import Watch
 from kubernetes_dynamic.models.resource_value import ResourceValue
 
 if typing.TYPE_CHECKING:
+    from kubernetes_dynamic.client import K8sClient
     from kubernetes_dynamic.events import Event
     from kubernetes_dynamic.models.common import ItemList
 
@@ -32,6 +34,7 @@ class ResourceApi(Protocol[R]):
     kind: str
     api_version: str
     namespaced: bool
+    client: K8sClient
 
     @property
     def resources(self) -> Any:
@@ -67,6 +70,9 @@ class ResourceApi(Protocol[R]):
     def read(self, name: str, namespace: Optional[str] = None, **kwargs) -> R:
         ...  # pragma: no cover
 
+    def read(self, name: Optional[str] = None, namespace: Optional[str] = None, **kwargs) -> R | ItemList[R]:
+        return self.client.read(self, name, namespace, **kwargs)  # pragma: no cover
+
     @overload
     def get(
         self,
@@ -87,11 +93,14 @@ class ResourceApi(Protocol[R]):
     def get(self, name: str, namespace: Optional[str] = None, **kwargs) -> Optional[R]:
         ...  # pragma: no cover
 
+    def get(self, name: Optional[str] = None, namespace: Optional[str] = None, **kwargs) -> Optional[R] | ItemList[R]:
+        return self.client.get(self, name, namespace, **kwargs)  # pragma: no cover
+
     def find(self, pattern: str, namespace: Optional[str] = None, **kwargs) -> list[R]:
-        ...  # pragma: no cover
+        return self.client.find(self, pattern, namespace, **kwargs)  # pragma: no cover
 
     def create(self, body: dict | R, namespace: Optional[str] = None, **kwargs) -> R:
-        ...  # pragma: no cover
+        return self.client.create(self, body, namespace, **kwargs)  # pragma: no cover
 
     @overload
     def delete(self, name: str, namespace: Optional[str] = None, body: Optional[dict | R] = None, **kwargs) -> R:
@@ -100,7 +109,7 @@ class ResourceApi(Protocol[R]):
     @overload
     def delete(
         self,
-        *,
+        name: NoneType = None,
         namespace: Optional[str] = None,
         body: Optional[dict | R] = None,
         label_selector: Optional[str] = None,
@@ -109,11 +118,24 @@ class ResourceApi(Protocol[R]):
     ) -> ItemList[R]:
         ...  # pragma: no cover
 
+    def delete(
+        self,
+        name: Optional[str] = None,
+        namespace: Optional[str] = None,
+        body: Optional[dict | R] = None,
+        label_selector: Optional[str] = None,
+        field_selector: Optional[str] = None,
+        **kwargs,
+    ) -> ItemList[R] | R:
+        return self.client.delete(
+            self, namespace=namespace, body=body, label_selector=label_selector, field_selector=field_selector, **kwargs
+        )  # pragma: no cover
+
     def replace(self, body: dict | R, name: Optional[str] = None, namespace: Optional[str] = None, **kwargs) -> R:
-        ...  # pragma: no cover
+        return self.client.replace(self, body, name, namespace, **kwargs)  # pragma: no cover
 
     def patch(self, body: dict | R, name: Optional[str] = None, namespace: Optional[str] = None, **kwargs) -> R:
-        ...  # pragma: no cover
+        return self.client.patch(self, body, name, namespace, **kwargs)  # pragma: no cover
 
     def server_side_apply(
         self,
@@ -123,7 +145,7 @@ class ResourceApi(Protocol[R]):
         force_conflicts: Optional[bool] = None,
         **kwargs,
     ) -> R:
-        ...  # pragma: no cover
+        return self.client.server_side_apply(self, body, name, namespace, force_conflicts, **kwargs)  # pragma: no cover
 
     def watch(
         self,
@@ -135,7 +157,9 @@ class ResourceApi(Protocol[R]):
         timeout: Optional[float] = None,
         watcher: Optional[Watch] = None,
     ) -> Iterator[Event[R]]:
-        ...  # pragma: no cover
+        yield from self.client.watch(
+            self, namespace, name, label_selector, field_selector, resource_version, timeout, watcher
+        )  # pragma: no cover
 
     def validate(self, definition: dict, version: Optional[str] = None, strict: bool = False) -> Tuple[List, List]:
         ...  # pragma: no cover
