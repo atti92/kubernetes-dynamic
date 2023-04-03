@@ -11,7 +11,9 @@ def test_namespace_init():
 
 
 def test_namespace_ensure(mock_client):
-    mock_client.get_api.return_value.create.return_value = V1Namespace.parse_obj(dict(metadata={"name": "my_namespace"}))
+    mock_client.get_api.return_value.create.return_value = V1Namespace.parse_obj(
+        dict(metadata={"name": "my_namespace"})
+    )
     namespace = V1Namespace.ensure("my_namespace")
     assert namespace.metadata.name == "my_namespace"
 

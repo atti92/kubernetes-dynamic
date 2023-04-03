@@ -3,7 +3,8 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Any, Callable, List, Optional, Type, TypeVar
+from types import NoneType
+from typing import Any, Callable, List, Optional, Type, TypeVar, overload
 
 import pydantic
 import yaml
@@ -216,10 +217,32 @@ class K8sClient(object):
             namespace=str(loader.current_context["context"].get("namespace", "default")),
         )
 
+    @overload
     def get_api(
         self,
         name: Optional[str] = None,
-        object_type: Optional[Type[T]] = None,
+        object_type: NoneType = None,
+        api_version: Optional[str] = None,
+        kind: Optional[str] = None,
+        **filter_dict,
+    ) -> ResourceApi[ResourceItem]:
+        ...
+
+    @overload
+    def get_api(
+        self,
+        name: Optional[str] = None,
+        object_type: Type[T] = None,
+        api_version: Optional[str] = None,
+        kind: Optional[str] = None,
+        **filter_dict,
+    ) -> ResourceApi[T]:
+        ...
+
+    def get_api(
+        self,
+        name: Optional[str] = None,
+        object_type: Optional[Type[T]] = ResourceItem,
         api_version: Optional[str] = None,
         kind: Optional[str] = None,
         **filter_dict,

@@ -130,7 +130,7 @@ class ResourceItem(ResourceValue):
         name = item.metadata.name
         if not item.status or not item.status.conditions:
             return CheckResult(False, f"No conditions found on {item.kind} {name}.")
-        for condition in item.status.conditions:
+        for condition in item.status.conditions:  # type: ignore
             if condition.status != "True":
                 untrue_condition = condition
                 break

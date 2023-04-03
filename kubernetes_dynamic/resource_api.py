@@ -14,9 +14,8 @@ from typing import (
 
 from typing_extensions import Protocol
 
+from kubernetes_dynamic.events import Watch
 from kubernetes_dynamic.models.resource_value import ResourceValue
-
-from . import _kubernetes
 
 if typing.TYPE_CHECKING:
     from kubernetes_dynamic.events import Event
@@ -134,7 +133,7 @@ class ResourceApi(Protocol[R]):
         field_selector: Optional[str] = None,
         resource_version: Optional[str] = None,
         timeout: Optional[float] = None,
-        watcher: Optional[_kubernetes.Watch] = None,
+        watcher: Optional[Watch] = None,
     ) -> Iterator[Event[R]]:
         ...  # pragma: no cover
 

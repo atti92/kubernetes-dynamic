@@ -66,7 +66,7 @@ class ResourceValue(pydantic.BaseModel):
     def __str__(self):
         return "{}:\n  {}".format(self.__class__.__name__, "  ".join(yaml.safe_dump(self.dict()).splitlines(True)))
 
-    def __getattr__(self, name: str):
+    def __getattr__(self, name: str) -> Any:
         return None
 
     def __getitem__(self, name: str):
