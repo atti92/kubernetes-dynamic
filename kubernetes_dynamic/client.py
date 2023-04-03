@@ -387,7 +387,6 @@ class K8sClient(object):
         resource_version=None,
         timeout=None,
         watcher=None,
-        **kwargs,
     ):
         namespace = self.ensure_namespace_param(resource, namespace)
         if name:
@@ -475,36 +474,26 @@ class K8sClient(object):
 
         path_params = params.get("path_params", {})
         query_params = params.get("query_params", [])
-        if params.get("pretty") is not None:
-            query_params.append(("pretty", params["pretty"]))
-        if params.get("_continue") is not None:
-            query_params.append(("continue", params["_continue"]))
-        if params.get("include_uninitialized") is not None:
-            query_params.append(("includeUninitialized", params["include_uninitialized"]))
-        if params.get("field_selector") is not None:
-            query_params.append(("fieldSelector", params["field_selector"]))
-        if params.get("label_selector") is not None:
-            query_params.append(("labelSelector", params["label_selector"]))
-        if params.get("limit") is not None:
-            query_params.append(("limit", params["limit"]))
-        if params.get("resource_version") is not None:
-            query_params.append(("resourceVersion", params["resource_version"]))
-        if params.get("timeout_seconds") is not None:
-            query_params.append(("timeoutSeconds", params["timeout_seconds"]))
-        if params.get("watch") is not None:
-            query_params.append(("watch", params["watch"]))
-        if params.get("grace_period_seconds") is not None:
-            query_params.append(("gracePeriodSeconds", params["grace_period_seconds"]))
-        if params.get("propagation_policy") is not None:
-            query_params.append(("propagationPolicy", params["propagation_policy"]))
-        if params.get("orphan_dependents") is not None:
-            query_params.append(("orphanDependents", params["orphan_dependents"]))
-        if params.get("dry_run") is not None:
-            query_params.append(("dryRun", params["dry_run"]))
-        if params.get("field_manager") is not None:
-            query_params.append(("fieldManager", params["field_manager"]))
-        if params.get("force_conflicts") is not None:
-            query_params.append(("force", params["force_conflicts"]))
+        options = (
+            "_continue",
+            "pretty",
+            "include_uninitialized",
+            "field_selector",
+            "label_selector",
+            "limit",
+            "resource_version",
+            "timeout_seconds",
+            "watch",
+            "grace_period_seconds",
+            "propagation_policy",
+            "orphan_dependents",
+            "dry_run",
+            "field_manager",
+            "force_conflicts",
+        )
+        for key in options:
+            if params.get(key):
+                query_params.append((key.lstrip("_"), params[key]))
 
         header_params = params.get("header_params", {})
         form_params = []
@@ -521,10 +510,7 @@ class K8sClient(object):
             )
 
         # HTTP header `Content-Type`
-        if params.get("content_type"):
-            header_params["Content-Type"] = params["content_type"]
-        else:
-            header_params["Content-Type"] = self.client.select_header_content_type(["*/*"])
+        header_params["Content-Type"] = params.get("content_type", self.client.select_header_content_type(["*/*"]))
 
         # Authentication setting
         auth_settings = ["BearerToken"]
@@ -544,10 +530,7 @@ class K8sClient(object):
             _return_http_data_only=params.get("_return_http_data_only", True),
             _request_timeout=params.get("_request_timeout"),
         )
-        if params.get("async_req"):
-            return api_response.get()  # type: ignore
-        else:
-            return api_response
+        return api_response.get() if params.get("async_req") else api_response  # type: ignore
 
     def apply(
         self,
