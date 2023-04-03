@@ -4,35 +4,39 @@ from kubernetes_dynamic.models.pod import V1Pod
 
 
 def test_pod_init():
-    pod = V1Pod(metadata={"name": "my_pod"})
+    pod = V1Pod.parse_obj(dict(metadata={"name": "my_pod"}))
     assert pod.metadata.name == "my_pod"
 
 
 def test_pod_get_restarts(mock_client):
     finished_at = datetime.utcnow()
-    pod_1 = V1Pod(
-        metadata={"name": "pod-1"},
-        status={
-            "containerStatuses": [
-                {
-                    "name": "container-1",
-                    "restartCount": 1,
-                    "lastState": {"terminated": {"reason": "reason", "finishedAt": finished_at}},
-                }
-            ]
-        },
+    pod_1 = V1Pod.parse_obj(
+        dict(
+            metadata={"name": "pod-1"},
+            status={
+                "containerStatuses": [
+                    {
+                        "name": "container-1",
+                        "restartCount": 1,
+                        "lastState": {"terminated": {"reason": "reason", "finishedAt": finished_at}},
+                    }
+                ]
+            },
+        )
     )
-    pod_2 = V1Pod(
-        metadata={"name": "pod-2"},
-        status={
-            "containerStatuses": [
-                {
-                    "name": "container-2",
-                    "restartCount": 0,
-                    "lastState": {"terminated": {"reason": "", "finishedAt": None}},
-                }
-            ]
-        },
+    pod_2 = V1Pod.parse_obj(
+        dict(
+            metadata={"name": "pod-2"},
+            status={
+                "containerStatuses": [
+                    {
+                        "name": "container-2",
+                        "restartCount": 0,
+                        "lastState": {"terminated": {"reason": "", "finishedAt": None}},
+                    }
+                ]
+            },
+        )
     )
 
     mock_client.pods.get.return_value = [pod_1, pod_2]
@@ -55,7 +59,7 @@ def test_pod_get_restarts(mock_client):
 
 
 def test_pod_exec(mock_client):
-    pod = V1Pod(metadata={"name": "my_pod", "namespace": "my_namespace"})
+    pod = V1Pod.parse_obj(dict(metadata={"name": "my_pod", "namespace": "my_namespace"}))
     assert pod.exec("command", "container") == mock_client.stream.return_value
     mock_client.stream.assert_called_with(
         mock_client.pods.exec.get,
@@ -71,7 +75,7 @@ def test_pod_exec(mock_client):
 
 
 def test_pod_disk_usage(mock_client):
-    pod = V1Pod(metadata={"name": "my_pod"})
+    pod = V1Pod.parse_obj(dict(metadata={"name": "my_pod"}))
     mock_client.stream.return_value = """    Used 1K-blocks    Avail Use% Mounted on
 12370080 104845292 92475212  12% /
         0     65536    65536   0% /dev
@@ -103,17 +107,17 @@ def test_pod_disk_usage(mock_client):
 
 
 def test_pod_get_controller_type_replicaset():
-    pod = V1Pod(metadata={"name": "my_pod", "ownerReferences": [{"kind": "ReplicaSet"}]})
+    pod = V1Pod.parse_obj(dict(metadata={"name": "my_pod", "ownerReferences": [{"name": "", "kind": "ReplicaSet"}]}))
     assert pod.get_controller_type() == "Deployment"
 
 
 def test_pod_get_controller_type_other():
-    pod = V1Pod(metadata={"name": "my_pod", "ownerReferences": [{"kind": "Other"}]})
+    pod = V1Pod.parse_obj(dict(metadata={"name": "my_pod", "ownerReferences": [{"name": "", "kind": "Other"}]}))
     assert pod.get_controller_type() == "Other"
 
 
 def test_pod_get_env(mock_client):
-    pod = V1Pod(metadata={"name": "my_pod"})
+    pod = V1Pod.parse_obj(dict(metadata={"name": "my_pod"}))
     mock_client.stream.return_value = """RT_KODBC_ASSEMBLY_NORTH_0_SERVICE_HOST=10.218.54.243
 INSIGHTS_GUI_GATEWAY_PORT_10001_TCP_PROTO=tcp
 RT_KODBC_ASSEMBLY_SOUTH_2_PORT_7000_UDP_PORT=7000

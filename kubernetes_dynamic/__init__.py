@@ -14,13 +14,12 @@ __all__ = [
 ]
 
 from . import exceptions, models
-from ._kubernetes import Watch
 from .client import K8sClient
 from .config import K8sConfig
-from .kube_event import Event, EventType
-from .resource import CheckResult, ResourceItem
+from .events import Event, EventType, Watch
+from .models.resource_item import CheckResult, ResourceItem
+from .models.resource_value import ResourceValue
 from .resource_api import ResourceApi
-from .resource_value import ResourceValue
 
 cl: K8sClient
 

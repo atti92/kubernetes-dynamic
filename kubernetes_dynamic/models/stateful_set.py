@@ -2,14 +2,15 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ..resource import ResourceItem
-from .common import V1ObjectMeta
+from pydantic import Field
+
+from .common import get_default
+from .resource_item import ResourceItem
 
 if TYPE_CHECKING:
-    from . import V1StatefulSetSpec, V1StatefulSetStatus
+    from .all import V1StatefulSetSpec, V1StatefulSetStatus
 
 
 class V1StatefulSet(ResourceItem):
-    metadata: V1ObjectMeta
-    spec: V1StatefulSetSpec
-    status: V1StatefulSetStatus
+    spec: V1StatefulSetSpec = Field(default_factory=lambda: get_default("V1StatefulSetSpec"))
+    status: V1StatefulSetStatus = Field(default_factory=lambda: get_default("V1StatefulSetStatus"))

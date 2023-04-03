@@ -11,10 +11,10 @@ def test_secret_init():
     assert secret.data["key"] == "value"
 
 
-def test_secret_exists(mock_resources):
+def test_secret_exists(mock_client):
     secret = V1Secret(metadata={"name": "my_secret"})
     assert secret.exists()
-    mock_resources.get.return_value.get.return_value = None
+    mock_client.get_api.return_value.get.return_value = None
     assert not secret.exists()
 
 
@@ -28,8 +28,8 @@ def test_secret_exists(mock_resources):
         (MagicMock(data={"key3": "", "key2": "", "key1": ""}, type="Opaque"), (True, True, [])),
     ],
 )
-def test_secret_validate_keys(secret, expected, mock_resources):
-    mock_resources.get.return_value.get.return_value = secret
+def test_secret_validate_keys(secret, expected, mock_client):
+    mock_client.get_api.return_value.get.return_value = secret
     secret = V1Secret(type="Opaque", metadata={"name": "my_secret"}, required_keys=("key1", "key2", "key3"))
     assert secret.validate_keys() == expected
 

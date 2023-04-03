@@ -1,17 +1,4 @@
-from typing import Optional, Union
-
-from kubernetes_dynamic.resource_value import ResourceValue
-
-
-def test_resource_field_new():
-    class ResourceFieldSample(ResourceValue):
-        a: int
-        b: "Optional[bool]"
-        c: Optional[bool]
-
-    assert ResourceFieldSample.__fields__["a"].annotation == Union[int, None]
-    assert ResourceFieldSample.__fields__["b"].annotation == Union[bool, None]
-    assert ResourceFieldSample.__fields__["c"].annotation == Union[bool, None]
+from kubernetes_dynamic.models.resource_value import ResourceValue
 
 
 def test_resource_field_init():

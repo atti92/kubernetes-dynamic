@@ -7,16 +7,15 @@ from typing import Callable, Optional
 import pydantic
 from typing_extensions import Self
 
-from kubernetes_dynamic.kube_event import Event, EventType
+from kubernetes_dynamic.events import Event, EventType
 
-from . import _kubernetes
-from .exceptions import NotFoundError
-from .models.common import V1ObjectMeta
-from .resource_api import ResourceApi
+from ..exceptions import NotFoundError
+from ..resource_api import ResourceApi
+from .common import V1ObjectMeta
 from .resource_value import ResourceValue
 
 if typing.TYPE_CHECKING:
-    from .client import K8sClient
+    from ..client import K8sClient
 
 
 class CheckResult:
@@ -38,45 +37,48 @@ class CheckResult:
 class ResourceItem(ResourceValue):
     """Kubernetes resource objects."""
 
-    apiVersion: str
-    kind: str
-    metadata: V1ObjectMeta = pydantic.Field(default_factory=V1ObjectMeta)  # type: ignore
-    status: ResourceValue
+    apiVersion: str = ""
+    kind: str = ""
+    metadata: V1ObjectMeta = pydantic.Field(default_factory=V1ObjectMeta)
+    status: ResourceValue = pydantic.Field(default_factory=ResourceValue)
 
     _client: Optional[K8sClient] = pydantic.PrivateAttr()
     _api: Optional[ResourceApi] = pydantic.PrivateAttr()
 
     def __init__(
         self,
-        definition: dict | _kubernetes.dynamic.ResourceInstance | _kubernetes.dynamic.ResourceField | None = None,
+        definition: dict | ResourceValue | None = None,
         client=None,
         **kwargs,
     ):
-        final_def: dict = {}
-        if isinstance(definition, dict):
-            final_def = definition
-        elif isinstance(definition, _kubernetes.dynamic.ResourceField):
-            final_def = definition.__dict__
-        elif isinstance(definition, _kubernetes.dynamic.ResourceInstance):
-            final_def = definition.to_dict()  # type: ignore
-            client = definition.client
-        final_def.update(kwargs)
-        final_def.setdefault("kind", self.kind)
-        final_def.setdefault("apiVersion", self.apiVersion)
-        if not final_def.get("kind") or not final_def.get("apiVersion"):
-            for cl in [self.__class__] + list(self.__class__.__bases__):
-                parts = re.sub("([a-z0-9])([A-Z])", r"\1 \2", cl.__name__).split()
-                match = [part for part in parts if re.match(r"^V\d.*", part)]
-                if match:
-                    version = match[0]
-                    version_index = parts.index(version) + 1
-                    final_def.setdefault("kind", "".join(parts[version_index:]))
-                    final_def.setdefault("apiVersion", version.lower())
-                    break
+        final_def = self.merge_definition_with_kwargs(definition, **kwargs)
+        defaults = self.get_defaults()
+        kind = final_def.get("kind") or self.kind or defaults.get("kind")
+        if kind:
+            final_def["kind"] = kind
+        apiVersion = final_def.get("apiVersion") or self.apiVersion or defaults.get("apiVersion")
+        if apiVersion:
+            final_def["apiVersion"] = apiVersion
+
         super().__init__(**final_def)
 
         self._api: Optional[ResourceApi] = None
         self._client = client
+
+    @classmethod
+    def get_defaults(cls):
+        """Get some default values based on the class."""
+        values = {}
+        for cl in [cls] + list(cls.__bases__):
+            parts = re.sub("([a-z0-9])([A-Z])", r"\1 \2", cl.__name__).split()
+            match = [part for part in parts if re.match(r"^V\d.*", part)]
+            if match:
+                version = match[0]
+                version_index = parts.index(version) + 1
+                values["kind"] = "".join(parts[version_index:])
+                values["apiVersion"] = version.lower()
+                break
+        return values
 
     @property
     def api(self) -> ResourceApi:
@@ -95,7 +97,7 @@ class ResourceItem(ResourceValue):
     @classmethod
     def default_client(cls) -> K8sClient:
         """Create a default K8sClient."""
-        from .client import K8sClient
+        from ..client import K8sClient
 
         return K8sClient()
 

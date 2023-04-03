@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock
+
 import pytest
 from pytest_mock import MockerFixture
 
@@ -6,25 +8,15 @@ import kubernetes_dynamic._kubernetes
 
 @pytest.fixture(autouse=True)
 def mock_kubernetes(mocker: MockerFixture):
-    def _init(*args, **kwargs):
-        return None
-
-    mocker.patch.object(kubernetes_dynamic._kubernetes.dynamic.DynamicClient, "__init__", _init)
-    mocker.patch.object(kubernetes_dynamic._kubernetes.dynamic.DynamicClient, "get", autospec=True)
-    mocker.patch.object(kubernetes_dynamic._kubernetes.dynamic.DynamicClient, "create", autospec=True)
-    mocker.patch.object(kubernetes_dynamic._kubernetes.dynamic.DynamicClient, "delete", autospec=True)
-    mocker.patch.object(kubernetes_dynamic._kubernetes.dynamic.DynamicClient, "replace", autospec=True)
-    mocker.patch.object(kubernetes_dynamic._kubernetes.dynamic.DynamicClient, "patch", autospec=True)
-    mocker.patch.object(kubernetes_dynamic._kubernetes.dynamic.DynamicClient, "watch", autospec=True)
-    mocker.patch.object(kubernetes_dynamic._kubernetes.dynamic.DynamicClient, "server_side_apply", autospec=True)
-    mocker.patch.object(kubernetes_dynamic._kubernetes, "ApiClient", autospec=True)
-    mocker.patch.object(kubernetes_dynamic._kubernetes.InClusterConfigLoader, "__init__", _init)
+    mocker.patch("kubernetes_dynamic._kubernetes.dynamic.LazyDiscoverer")
+    api_client = mocker.patch.object(kubernetes_dynamic._kubernetes, "ApiClient", autospec=True)
+    api_client.return_value.configuration = MagicMock()
+    mocker.patch.object(kubernetes_dynamic._kubernetes.InClusterConfigLoader, "__init__", return_value=None)
     mocker.patch.object(kubernetes_dynamic._kubernetes.InClusterConfigLoader, "load_and_set", autospec=True)
-    mocker.patch.object(kubernetes_dynamic._kubernetes.KubeConfigLoader, "__init__", _init)
+    mocker.patch.object(kubernetes_dynamic._kubernetes.KubeConfigLoader, "__init__", return_value=None)
     mocker.patch.object(kubernetes_dynamic._kubernetes.KubeConfigLoader, "load_and_set", autospec=True)
     mocker.patch.object(kubernetes_dynamic._kubernetes.KubeConfigLoader, "set_active_context", autospec=True)
     mocker.patch.object(kubernetes_dynamic._kubernetes, "_get_kube_config_loader", autospec=True)
-    mocker.patch.object(kubernetes_dynamic._kubernetes, "Watch", autospec=True)
     return kubernetes_dynamic._kubernetes
 
 
@@ -39,8 +31,8 @@ def mock_resources(mocker):
 
 
 @pytest.fixture
-def mock_dclient(mock_kubernetes):
-    return mock_kubernetes.dynamic.DynamicClient
+def mock_request(mocker):
+    return mocker.patch("kubernetes_dynamic.client.K8sClient.request")
 
 
 @pytest.fixture

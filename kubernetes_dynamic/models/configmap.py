@@ -3,17 +3,19 @@ from __future__ import annotations
 import base64
 import mimetypes
 from pathlib import Path
-from typing import Dict
+from typing import Dict, cast
 
-from ..resource import ResourceItem
-from .common import V1ObjectMeta
+from pydantic import Field
+
+from kubernetes_dynamic.models.common import V1ObjectMeta
+
+from .resource_item import ResourceItem
 
 
 class V1ConfigMap(ResourceItem):
-    binaryData: Dict[str, str]
-    data: Dict[str, str]
-    immutable: bool
-    metadata: V1ObjectMeta
+    binaryData: Dict[str, str] = Field(default_factory=dict)
+    data: Dict[str, str] = Field(default_factory=dict)
+    immutable: bool = False
 
     @staticmethod
     def _path_to_data_item(file_path: str | Path):
@@ -40,10 +42,13 @@ class V1ConfigMap(ResourceItem):
             data.update(item_data["data"])
             binary_data.update(item_data["binaryData"])
         configmap = cls(
-            metadata={
-                "name": name,
-                "namespace": namespace,
-            },
+            metadata=cast(
+                V1ObjectMeta,
+                {
+                    "name": name,
+                    "namespace": namespace,
+                },
+            ),
             apiVersion="v1",
             kind="ConfigMap",
             data=data,

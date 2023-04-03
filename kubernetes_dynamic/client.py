@@ -1,19 +1,18 @@
 from __future__ import annotations
 
-import functools
-import inspect
 import json
+import re
 from pathlib import Path
-from typing import Callable, List, Optional, Type, TypeVar
+from typing import Any, Callable, List, Optional, Type, TypeVar
 
 import pydantic
 import yaml
 
-from kubernetes_dynamic.formatters import format_selector
-from kubernetes_dynamic.models.common import ItemList
+import kubernetes_dynamic.models as models
 
-from . import _kubernetes, models
+from . import _kubernetes
 from .config import K8sConfig
+from .events import Event, Watch
 from .exceptions import (
     ConfigException,
     ConflictError,
@@ -23,71 +22,57 @@ from .exceptions import (
     ResourceNotUniqueError,
     UnprocessibleEntityError,
 )
-from .resource import CheckResult, ResourceItem
-from .resource_api import Event, ResourceApi
+from .formatters import format_selector
+from .models.common import ItemList, get_type
+from .models.resource_item import CheckResult, ResourceItem
+from .models.resource_value import ResourceValue
+from .resource_api import ResourceApi
 
 T = TypeVar("T", bound=ResourceItem)
 
 
-def serialize_object(data, resource_api: Optional[ResourceApi] = None) -> ResourceItem | ItemList[ResourceItem]:
+MISSING = object()
+
+
+def serialize_object(data, serializer: Type = None) -> ResourceItem | ItemList[ResourceItem]:
     kind = data["kind"]
-    api_version = data["apiVersion"]
-
-    if resource_api and hasattr(resource_api, "_resource_type") and resource_api._resource_type:
-        obj_type = resource_api._resource_type
-    else:
-        obj_type = models.get_type(kind, api_version, ResourceItem)
-
+    is_list = False
     if kind.endswith("List") and "items" in data:
         kind = kind[:-4]
-        for item in data["items"]:
-            item.setdefault("apiVersion", api_version)
-            item.setdefault("kind", kind)
-        items = pydantic.parse_obj_as(List[obj_type], data["items"])
-        return ItemList(items, metadata=data["metadata"])
-    return pydantic.parse_obj_as(obj_type, data)
+        is_list = True
+
+    api_version = data["apiVersion"]
+
+    obj_type = serializer or get_type(kind, api_version, ResourceItem)
+
+    if not is_list:
+        return pydantic.parse_obj_as(obj_type, data)
+
+    for item in data["items"]:
+        item.setdefault("apiVersion", api_version)
+        item.setdefault("kind", kind)
+    items = pydantic.parse_obj_as(List[obj_type], data["items"])
+    return ItemList(items, metadata=data["metadata"])
 
 
-def serialize(func):
-    @functools.wraps(func)
-    def wrapped(client: K8sClient, resource_api: ResourceApi, *args, serialize=True, **kwargs):
-        response = func(client, resource_api, *args, serialize=False, **kwargs)
+def meta_request(func):
+    """Handles parsing response structure and translating API Exceptions"""
+
+    def inner(self, *args, **kwargs):
+        serialize = kwargs.pop("serialize", True)
+        serializer = kwargs.pop("serializer", ResourceValue)
+        response = func(self, *args, **kwargs)
         if not response:
             return None
         if not serialize:
             return response
         data = json.loads(response.data)
-        return serialize_object(data, resource_api)
+        return serialize_object(data, serializer)
 
-    return wrapped
-
-
-def default_namespaced(func):
-    @functools.wraps(func)
-    def wrapped(client: K8sClient, resource: ResourceApi, *args, **kwargs):
-        if not resource.namespaced or "namespace" in kwargs:
-            return func(client, resource, *args, **kwargs)
-        params = inspect.signature(func).parameters
-        namespace_param = params.get("namespace")
-        body_param = params.get("body")
-        args = list(args)
-        namespace = client.config.namespace
-        if body_param and body_param.kind == body_param.POSITIONAL_OR_KEYWORD:
-            arg_index = list(params).index("body") - 2
-            body = kwargs.get("body", args[arg_index] if len(args) > arg_index else {}) or {}
-            namespace = body.get("metadata", {}).get("namespace", namespace)
-        if namespace_param and namespace_param.kind == namespace_param.POSITIONAL_OR_KEYWORD:
-            arg_index = list(params).index("namespace") - 2
-            if len(args) > arg_index:
-                args[arg_index] = args[arg_index] or namespace
-            else:
-                kwargs["namespace"] = kwargs.get("namespace", namespace)
-        return func(client, resource, *args, **kwargs)
-
-    return wrapped
+    return inner
 
 
-class K8sClient(_kubernetes.dynamic.DynamicClient):
+class K8sClient(object):
     _loaded: bool = False
     in_cluster: bool = False
 
@@ -147,10 +132,22 @@ class K8sClient(_kubernetes.dynamic.DynamicClient):
         config_file: Optional[str] = None,
         config_dict: Optional[dict] = None,
         context: Optional[str] = None,
+        cache_file=None,
+        discoverer=None,
     ):
+        discoverer = discoverer or _kubernetes.dynamic.LazyDiscoverer
         self.config = self.get_config(config_file, config_dict=config_dict, context=context)
         self.client = api_client or _kubernetes.ApiClient(configuration=self.config.configuration)
-        super().__init__(self.client)
+        self.configuration = self.client.configuration
+        self.__discoverer = discoverer(self, cache_file)
+
+    @property
+    def resources(self):
+        return self.__discoverer
+
+    @property
+    def version(self):
+        return self.__discoverer.version
 
     @staticmethod
     def get_config_file() -> str:
@@ -241,9 +238,7 @@ class K8sClient(_kubernetes.dynamic.DynamicClient):
                 for r in self.resources.search(**filter_dict)
                 if r.preferred and isinstance(r, _kubernetes.dynamic.Resource)
             ][0]
-        api._resource_type = object_type or models.get_type(  # type: ignore
-            str(api.kind), str(api.api_version), ResourceItem
-        )
+        api._resource_type = object_type or get_type(str(api.kind), str(api.api_version), ResourceItem)  # type: ignore
         return api  # type: ignore
 
     def __getattr__(self, name: str) -> ResourceApi[ResourceItem]:
@@ -255,55 +250,114 @@ class K8sClient(_kubernetes.dynamic.DynamicClient):
     def events_events(self) -> ResourceApi[models.EventsV1Event]:
         return self.get_api("events", object_type=models.EventsV1Event, api_version="events.k8s.io/v1")
 
-    @serialize
-    @default_namespaced
-    def get(self, resource: ResourceApi, name=None, namespace=None, **kwargs):
+    def ensure_namespace_param(self, resource, namespace, body=None) -> Optional[str]:
+        if not resource.namespaced:
+            return None
+        if namespace is MISSING:
+            if body:
+                namespace = body.get("metadata", {}).get("namespace", self.config.namespace)
+            else:
+                namespace = self.config.namespace
+        if not namespace:
+            raise ValueError("Namespace is required for {}.{}".format(resource.group_version, resource.kind))
+        return namespace
+
+    def ensure_name_param(self, resource, name, body=None) -> str:
+        if not name and body:
+            name = body.get("metadata", {}).get("name")
+        if not name:
+            raise ValueError("Name is required for {}.{}".format(resource.group_version, resource.kind))
+        return name
+
+    def serialize_body(self, body):
+        """Serialize body to raw dict so apiserver can handle it
+
+        :param body: kubernetes resource body, current support: Union[Dict, ResourceValue]
+        """
+        if callable(getattr(body, "to_dict", None)):
+            return body.to_dict()
+        return body or {}
+
+    def read(self, resource: ResourceApi, name=None, namespace=MISSING, **kwargs):
+        namespace = self.ensure_namespace_param(resource, namespace)
+        path = resource.path(name=name, namespace=namespace)
+        return self.request("get", path, **kwargs)
+
+    def get(self, resource: ResourceApi, name=None, namespace=MISSING, **kwargs):
         try:
-            return super().get(resource, name, namespace, **kwargs)
+            return self.read(resource, name, namespace, **kwargs)
         except NotFoundError:
             return None
 
-    @serialize
-    @default_namespaced
-    def create(self, resource: ResourceApi, body=None, namespace=None, **kwargs):
-        return super().create(resource, body, namespace, **kwargs)
+    def find(self, resource: ResourceApi, pattern, namespace=MISSING, **kwargs):
+        items = []
+        data = self.get(resource, namespace=namespace, **kwargs)
+        if not data:
+            return items
+        for item in data:
+            if re.match(pattern, item.metadata.name):
+                items.append(item)
+        return items
 
-    @serialize
-    @default_namespaced
+    def create(self, resource: ResourceApi, body=None, namespace=MISSING, **kwargs):
+        body = self.serialize_body(body)
+        namespace = self.ensure_namespace_param(resource, namespace, body)
+        path = resource.path(namespace=namespace)
+        return self.request("post", path, body=body, **kwargs)
+
     def delete(
         self,
         resource: ResourceApi,
         name=None,
-        namespace=None,
+        namespace=MISSING,
         body=None,
         label_selector=None,
         field_selector=None,
         **kwargs,
     ):
-        return super().delete(resource, name, namespace, body, label_selector, field_selector, **kwargs)
+        if not (name or label_selector or field_selector):
+            raise ValueError("At least one of name|label_selector|field_selector is required")
+        if resource.namespaced and not (label_selector or field_selector):
+            namespace = self.ensure_namespace_param(resource, namespace)
+        path = resource.path(name=name, namespace=namespace)
+        return self.request(
+            "delete", path, body=body, label_selector=label_selector, field_selector=field_selector, **kwargs
+        )
 
-    @serialize
-    @default_namespaced
-    def replace(self, resource: ResourceApi, body=None, name=None, namespace=None, **kwargs):
-        return super().replace(resource, body, name, namespace, **kwargs)
+    def replace(self, resource: ResourceApi, body=None, name=None, namespace=MISSING, **kwargs):
+        body = self.serialize_body(body)
+        name = self.ensure_name_param(resource, name, body)
+        namespace = self.ensure_namespace_param(resource, namespace, body)
+        path = resource.path(name=name, namespace=namespace)
+        return self.request("put", path, body=body, **kwargs)
 
-    @serialize
-    @default_namespaced
-    def patch(self, resource: ResourceApi, body=None, name=None, namespace=None, **kwargs):
-        return super().patch(resource, body, name, namespace, **kwargs)
+    def patch(self, resource: ResourceApi, body=None, name=None, namespace=MISSING, **kwargs):
+        body = self.serialize_body(body)
+        name = self.ensure_name_param(resource, name, body)
+        namespace = self.ensure_namespace_param(resource, namespace, body)
 
-    @serialize
-    @default_namespaced
+        content_type = kwargs.pop("content_type", "application/strategic-merge-patch+json")
+        path = resource.path(name=name, namespace=namespace)
+
+        return self.request("patch", path, body=body, content_type=content_type, **kwargs)
+
     def server_side_apply(
-        self, resource: ResourceApi, body=None, name=None, namespace=None, force_conflicts=None, **kwargs
+        self, resource: ResourceApi, body=None, name=None, namespace=MISSING, force_conflicts=None, **kwargs
     ):
-        return super().server_side_apply(resource, body, name, namespace, force_conflicts, **kwargs)
+        body = self.serialize_body(body)
+        name = self.ensure_name_param(resource, name, body)
+        namespace = self.ensure_namespace_param(resource, namespace, body)
 
-    @default_namespaced
+        # force content type to 'application/apply-patch+yaml'
+        kwargs.update({"content_type": "application/apply-patch+yaml"})
+        path = resource.path(name=name, namespace=namespace)
+
+        return self.request("patch", path, body=body, force_conflicts=force_conflicts, **kwargs)
+
     def watch(
         self,
         resource: ResourceApi,
-        namespace=None,
+        namespace=MISSING,
         name=None,
         label_selector=None,
         field_selector=None,
@@ -312,27 +366,29 @@ class K8sClient(_kubernetes.dynamic.DynamicClient):
         watcher=None,
         **kwargs,
     ):
+        namespace = self.ensure_namespace_param(resource, namespace)
         if name:
             field_selector = field_selector or ""
             field_selector += f",metadata.name={name}"
-        for item in super().watch(
-            resource,
-            namespace,
-            None,
-            label_selector,
-            field_selector,
-            resource_version,
-            timeout,
-            watcher,
-        ):
-            item["object"] = serialize_object(item["object"], resource)  # type: ignore
-            yield Event(**item)  # type: ignore
+        watcher = watcher or Watch(self.client, resource._resource_type)
+        if watcher and not resource_version:
+            resource_version = watcher.resource_version
+        return watcher.stream(
+            resource.get,
+            namespace=namespace or self.config.namespace,
+            name=None,
+            field_selector=field_selector,
+            label_selector=label_selector,
+            resource_version=resource_version,
+            serialize=False,
+            timeout_seconds=timeout,
+        )
 
     def wait_until(
         self,
         resource: ResourceApi,
         *,
-        namespace=None,
+        namespace=MISSING,
         name=None,
         check: Callable[[Event], CheckResult],
         field_selector=None,
@@ -341,6 +397,7 @@ class K8sClient(_kubernetes.dynamic.DynamicClient):
         **kwargs,
     ) -> Event:
         """Wait until a certain custom check returns true for a resource returned by the stream."""
+        namespace = self.ensure_namespace_param(resource, namespace)
         field_selectors = [] if not field_selector else [format_selector(field_selector)]
         if name:
             field_selectors.append(f"metadata.name={name}")
@@ -364,7 +421,7 @@ class K8sClient(_kubernetes.dynamic.DynamicClient):
             raise EventTimeoutError(result.message, last=last)
         raise EventTimeoutError(f"Timed out waiting for check on {self.kind} {name} .", last=last)
 
-    def stream(self, method, name=None, namespace=None, *args, **kwargs):
+    def stream(self, method, name=None, namespace=MISSING, *args, **kwargs):
         from kubernetes.stream.ws_client import WSResponse, websocket_call
 
         prev_request = self.client.request
@@ -388,12 +445,93 @@ class K8sClient(_kubernetes.dynamic.DynamicClient):
         finally:
             self.client.request = prev_request
 
+    @meta_request
+    def request(self, method, path, body=None, **params) -> Any:
+        if not path.startswith("/"):
+            path = "/" + path
+
+        path_params = params.get("path_params", {})
+        query_params = params.get("query_params", [])
+        if params.get("pretty") is not None:
+            query_params.append(("pretty", params["pretty"]))
+        if params.get("_continue") is not None:
+            query_params.append(("continue", params["_continue"]))
+        if params.get("include_uninitialized") is not None:
+            query_params.append(("includeUninitialized", params["include_uninitialized"]))
+        if params.get("field_selector") is not None:
+            query_params.append(("fieldSelector", params["field_selector"]))
+        if params.get("label_selector") is not None:
+            query_params.append(("labelSelector", params["label_selector"]))
+        if params.get("limit") is not None:
+            query_params.append(("limit", params["limit"]))
+        if params.get("resource_version") is not None:
+            query_params.append(("resourceVersion", params["resource_version"]))
+        if params.get("timeout_seconds") is not None:
+            query_params.append(("timeoutSeconds", params["timeout_seconds"]))
+        if params.get("watch") is not None:
+            query_params.append(("watch", params["watch"]))
+        if params.get("grace_period_seconds") is not None:
+            query_params.append(("gracePeriodSeconds", params["grace_period_seconds"]))
+        if params.get("propagation_policy") is not None:
+            query_params.append(("propagationPolicy", params["propagation_policy"]))
+        if params.get("orphan_dependents") is not None:
+            query_params.append(("orphanDependents", params["orphan_dependents"]))
+        if params.get("dry_run") is not None:
+            query_params.append(("dryRun", params["dry_run"]))
+        if params.get("field_manager") is not None:
+            query_params.append(("fieldManager", params["field_manager"]))
+        if params.get("force_conflicts") is not None:
+            query_params.append(("force", params["force_conflicts"]))
+
+        header_params = params.get("header_params", {})
+        form_params = []
+        local_var_files = {}
+
+        # Checking Accept header.
+        new_header_params = dict((key.lower(), value) for key, value in header_params.items())
+        if "accept" not in new_header_params:
+            header_params["Accept"] = self.client.select_header_accept(
+                [
+                    "application/json",
+                    "application/yaml",
+                ]
+            )
+
+        # HTTP header `Content-Type`
+        if params.get("content_type"):
+            header_params["Content-Type"] = params["content_type"]
+        else:
+            header_params["Content-Type"] = self.client.select_header_content_type(["*/*"])
+
+        # Authentication setting
+        auth_settings = ["BearerToken"]
+
+        api_response = self.client.call_api(
+            path,
+            method.upper(),
+            path_params,
+            query_params,
+            header_params,
+            body=body,
+            post_params=form_params,
+            async_req=params.get("async_req"),
+            files=local_var_files,
+            auth_settings=auth_settings,
+            _preload_content=False,
+            _return_http_data_only=params.get("_return_http_data_only", True),
+            _request_timeout=params.get("_request_timeout"),
+        )
+        if params.get("async_req"):
+            return api_response.get()  # type: ignore
+        else:
+            return api_response
+
     def apply(
         self,
         *,
-        namespace: Optional[str] = None,
+        namespace: Optional[str | object] = MISSING,
         file_path: Optional[str | Path] = None,
-        data: Optional[dict | list] = None,
+        data: Optional[dict | list | ResourceItem] = None,
     ) -> list[ResourceItem]:
         """Apply a kubernetes resource."""
         if file_path is not None and data is not None:
@@ -405,7 +543,7 @@ class K8sClient(_kubernetes.dynamic.DynamicClient):
                 raise FileNotFoundError(file_path)
             with open(file_path) as fp:
                 data = list(yaml.full_load_all(fp))
-        elif isinstance(data, dict):
+        if not isinstance(data, list):
             data = [data]
 
         items = []
@@ -414,8 +552,10 @@ class K8sClient(_kubernetes.dynamic.DynamicClient):
             items.append(self._apply(resource, item, namespace))
         return items
 
-    @default_namespaced
-    def _apply(self, resource: ResourceApi, body: dict, namespace: Optional[str] = None, **kwargs) -> ResourceItem:
+    def _apply(
+        self, resource: ResourceApi, body: dict | ResourceItem, namespace: Optional[str | object] = MISSING, **kwargs
+    ) -> ResourceItem:
+        namespace = self.ensure_namespace_param(resource, namespace)
         body["metadata"].setdefault("annotations", {})
         name = body["metadata"]["name"]
         try:

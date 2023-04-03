@@ -2,17 +2,18 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ..resource import ResourceItem
-from .common import V1ObjectMeta
+from pydantic import Field
+
+from .common import get_default
+from .resource_item import ResourceItem
 
 if TYPE_CHECKING:
-    from . import V1PodSpec, V1PodStatus
+    from .all import V1PodSpec, V1PodStatus
 
 
 class V1Pod(ResourceItem):
-    metadata: V1ObjectMeta
-    spec: V1PodSpec
-    status: V1PodStatus
+    spec: V1PodSpec = Field(default_factory=lambda: get_default("V1PodSpec"))
+    status: V1PodStatus = Field(default_factory=lambda: get_default("V1PodStatus"))
 
     @classmethod
     def get_restarts(cls):

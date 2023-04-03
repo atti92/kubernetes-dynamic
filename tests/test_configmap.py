@@ -7,7 +7,7 @@ from kubernetes_dynamic.models.configmap import V1ConfigMap
 
 
 def test_configmap_init():
-    pod = V1ConfigMap(metadata={"name": "my_configmap"})
+    pod = V1ConfigMap.parse_obj(dict(metadata={"name": "my_configmap"}))
     assert pod.metadata.name == "my_configmap"
 
 

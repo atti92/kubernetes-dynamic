@@ -6,18 +6,16 @@ from typing import Dict, List, Tuple, Union, overload
 from pydantic import Field, PrivateAttr
 from typing_extensions import Literal
 
-from ..resource import ResourceItem
-from .common import V1ObjectMeta
+from .resource_item import ResourceItem
 
 
 class V1Secret(ResourceItem):
     """Extended Kubernetes Secret object."""
 
     data: Dict[str, str] = Field(default_factory=dict)
-    immutable: bool
-    metadata: V1ObjectMeta
-    stringData: Dict[str, str]
-    type: str
+    immutable: bool = False
+    stringData: Dict[str, str] = Field(default_factory=dict)
+    type: str = "Opaque"
 
     _required_keys: Union[tuple, List] = PrivateAttr(default_factory=tuple)
 

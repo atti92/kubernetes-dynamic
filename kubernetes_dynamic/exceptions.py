@@ -1,13 +1,45 @@
-from ._kubernetes import ConfigException as ConfigException
-from ._kubernetes import ConflictError as ConflictError
-from ._kubernetes import NotFoundError as NotFoundError
-from ._kubernetes import (
-    ResourceNotUniqueError as ResourceNotUniqueError,
+__all__ = [
+    "ApiException",
+    "DynamicApiError",
+    "ResourceNotFoundError",
+    "ResourceNotUniqueError",
+    "KubernetesValidateMissing",
+    "BadRequestError",
+    "UnauthorizedError",
+    "ForbiddenError",
+    "NotFoundError",
+    "MethodNotAllowedError",
+    "ConflictError",
+    "GoneError",
+    "UnprocessibleEntityError",
+    "TooManyRequestsError",
+    "InternalServerError",
+    "ServiceUnavailableError",
+    "ServerTimeoutError",
+    "ConfigException",
+]
+
+
+from kubernetes.config.config_exception import ConfigException
+from kubernetes.dynamic.exceptions import (
+    ApiException,
+    BadRequestError,
+    ConflictError,
+    DynamicApiError,
+    ForbiddenError,
+    GoneError,
+    InternalServerError,
+    KubernetesValidateMissing,
+    MethodNotAllowedError,
+    NotFoundError,
+    ResourceNotFoundError,
+    ResourceNotUniqueError,
+    ServerTimeoutError,
+    ServiceUnavailableError,
+    TooManyRequestsError,
+    UnauthorizedError,
+    UnprocessibleEntityError,
 )
-from ._kubernetes import (
-    UnprocessibleEntityError as UnprocessibleEntityError,
-)
-from ._kubernetes import DynamicApiError as DynamicApiError
 
 
 class InvalidParameter(Exception):

@@ -1,10 +1,9 @@
 from unittest.mock import MagicMock
 
 import pytest
-from kubernetes import dynamic
 from kubernetes.dynamic.exceptions import NotFoundError
 
-from kubernetes_dynamic.resource import CheckResult, ResourceItem
+from kubernetes_dynamic.models.resource_item import CheckResult, ResourceItem
 
 
 def test_resource_init_dict():
@@ -12,30 +11,8 @@ def test_resource_init_dict():
     assert item.key1 == "val1"
     assert item.key2.subkey1 == 3
     assert item.key3[0].subl1 == 4
-    assert item.kind is None
-    assert item.apiVersion is None
-
-
-def test_resource_resource_instance():
-    client = MagicMock()
-    base = dynamic.ResourceInstance(client, dict(kind="Kind", key1="val1", key2={"subkey1": 3}, key3=[{"subl1": 4}]))
-    item = ResourceItem(base)
-    assert item.key1 == "val1"
-    assert item.key2.subkey1 == 3
-    assert item.key3[0].subl1 == 4
-    assert item.kind == "Kind"
-    assert item.apiVersion is None
-    assert item.client is client
-
-
-def test_resource_resource_field():
-    base = dynamic.ResourceField(dict(key1="val1", key2={"subkey1": 3}, key3=[{"subl1": 4}]))
-    item = ResourceItem(base)
-    assert item.key1 == "val1"
-    assert item.key2.subkey1 == 3
-    assert item.key3[0].subl1 == 4
-    assert item.kind is None
-    assert item.apiVersion is None
+    assert item.kind == ""
+    assert item.apiVersion == ""
 
 
 def test_resource_api(mock_client):
@@ -56,7 +33,7 @@ def test_resource_refresh(mock_client):
 
 
 def test_resource_is_ready(mock_client, mocker):
-    is_ready_mock = mocker.patch("kubernetes_dynamic.resource.ResourceItem.check_object_is_ready")
+    is_ready_mock = mocker.patch("kubernetes_dynamic.models.resource_item.ResourceItem.check_object_is_ready")
     item = ResourceItem(metadata={"name": "name", "namespace": "namespace"})
 
     assert item.is_ready() == is_ready_mock.return_value
@@ -135,18 +112,12 @@ def test_check_replicas_ready(status, result):
 
 
 def test_check_object_is_ready_no():
-    item = ResourceItem(
-        dict(
-            kind="Kind",
-            metadata={"name": "name", "namespace": "namespace"},
-            status=None,
-        )
-    )
+    item = MagicMock(status=None)
     assert ResourceItem.check_object_is_ready(item) == CheckResult(False, "Object has no status description.")
 
 
 def test_check_object_is_ready_replicas(mocker):
-    mock_replicas = mocker.patch("kubernetes_dynamic.resource.ResourceItem.check_replicas_ready")
+    mock_replicas = mocker.patch("kubernetes_dynamic.models.resource_item.ResourceItem.check_replicas_ready")
     item = ResourceItem(
         dict(
             kind="Kind",
@@ -158,7 +129,7 @@ def test_check_object_is_ready_replicas(mocker):
 
 
 def test_check_object_is_ready_conditions(mocker):
-    mock_conditions = mocker.patch("kubernetes_dynamic.resource.ResourceItem.check_object_conditions")
+    mock_conditions = mocker.patch("kubernetes_dynamic.models.resource_item.ResourceItem.check_object_conditions")
     item = ResourceItem(
         dict(
             kind="Kind",

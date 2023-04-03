@@ -1,32 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import pydantic
 import yaml
 
 
-class AllOptional(pydantic.main.ModelMetaclass):
-    """Extends pydantic model params with Optional flag."""
-
-    def __new__(cls, name, bases, namespaces, **kwargs):
-        def _is_change_needed(key):
-            if key in namespaces:
-                return False
-            if isinstance(namespaces["__annotations__"][key], str) and namespaces["__annotations__"][key].startswith(
-                "Optional"
-            ):
-                return False
-            return True
-
-        annotations = namespaces.get("__annotations__", {})
-        namespaces["__annotations__"] = {
-            key: Optional[value] if _is_change_needed(key) else value for key, value in annotations.items()
-        }
-        return super().__new__(cls, name, bases, namespaces, **kwargs)
-
-
-class ResourceValue(pydantic.BaseModel, metaclass=AllOptional):
+class ResourceValue(pydantic.BaseModel):
     """Every kubernetes field with dictionary like format."""
 
     class Config:
@@ -34,10 +14,34 @@ class ResourceValue(pydantic.BaseModel, metaclass=AllOptional):
 
         extra = "allow"
         arbitrary_types_allowed = True
+        use_enum_values = True
+
+    def __init__(
+        self,
+        definition: dict[str, Any] | ResourceValue | None = None,
+        **kwargs,
+    ):
+        final_def = self.merge_definition_with_kwargs(definition, **kwargs)
+        super().__init__(**final_def)
+
+    @classmethod
+    def merge_definition_with_kwargs(
+        cls,
+        definition: dict | ResourceValue | None = None,
+        **kwargs,
+    ) -> dict[str, Any]:
+        final_def: dict = {}
+        definition = definition or {}
+        if isinstance(definition, dict):
+            final_def = definition
+        elif isinstance(definition, ResourceValue):
+            final_def = definition.dict()  # type: ignore
+        final_def.update(kwargs)
+        return final_def
 
     @pydantic.root_validator(pre=True)
     def build_extra(cls, values: Dict[str, Any]) -> Dict[str, Any]:  # noqa: B902, N805
-        """Automatically convert extra items to ResourceFields."""
+        """Automatically convert extra items to ResourceValues."""
         field_names = {field.alias for field in cls.__fields__.values()}
 
         def convert(item: Any):
@@ -59,20 +63,20 @@ class ResourceValue(pydantic.BaseModel, metaclass=AllOptional):
             setattr(self, key, getattr(data, key))
         return self
 
-    def __repr__(self):
+    def __str__(self):
         return "{}:\n  {}".format(self.__class__.__name__, "  ".join(yaml.safe_dump(self.dict()).splitlines(True)))
-
-    def __getattribute__(self, name: str) -> Any:
-        return super().__getattribute__(name)
 
     def __getattr__(self, name: str):
         return None
 
-    def __getitem__(self, name):
-        return getattr(self, name)
+    def __getitem__(self, name: str):
+        return self.__dict__[name]
 
-    def __setitem__(self, name, value):
+    def __setitem__(self, name: str, value: Any):
         setattr(self, name, value)
+
+    def keys(self):
+        return self.__dict__.keys()
 
     def to_dict(self):
         """Convert to dict."""
@@ -80,8 +84,11 @@ class ResourceValue(pydantic.BaseModel, metaclass=AllOptional):
 
     def to_str(self):
         """Get a yaml string representation."""
-        return repr(self)
+        return str(self)
 
-    def get(self, name, default=None):
+    def get(self, name: str, default: Any = None):
         """Same as dict.get."""
-        return self[name] or default
+        return self.__dict__.get(name, default)
+
+    def __contains__(self, m):
+        return m in self.__dict__
