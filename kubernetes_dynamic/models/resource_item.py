@@ -51,7 +51,7 @@ class ResourceItem(ResourceValue):
         client=None,
         **kwargs,
     ):
-        final_def = self.merge_definition_with_kwargs(definition, **kwargs)
+        final_def = ResourceItem.merge_definition_with_kwargs(definition, **kwargs)
         defaults = self.get_defaults()
         kind = final_def.get("kind") or self.kind or defaults.get("kind")
         if kind:

@@ -26,17 +26,15 @@ class MyModel(kd.models.ResourceItem):
     field: str
 
 
-client = kd.K8sClient()
-
-api: ResourceApi[MyModel] = cl.get_api("mycustomresources", MyModel)
-api: ResourceApi[MyModel] = cl.get_api(kind="MyCustomResource", object_type=MyModel)
+api: ResourceApi[MyModel] = kc.cl.get_api("mycustomresources", MyModel)
+api: ResourceApi[MyModel] = kc.cl.get_api(kind="MyCustomResource", object_type=MyModel)
 items: List[MyModel] = api.get()
 item: Optional[MyModel] = api.get(name="exact-name")
 if item:
     item.field = "modified"
     item.patch()
 else:
-    item = MyModel(metadata={"name": "exact-name", "namespace": "namespace-name"}, field="created")
+    item = MyModel(metadata={"name": "exact-name", "namespace": "namespace-name"}, field="created", client=kd.cl)
     item.create()
     # item = MyModel(field="created")
     # item.metadata.name = "exact-name"

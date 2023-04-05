@@ -26,7 +26,6 @@ from .exceptions import (
 from .formatters import format_selector
 from .models.common import ItemList, get_type
 from .models.resource_item import CheckResult, ResourceItem
-from .models.resource_value import ResourceValue
 from .resource_api import ResourceApi
 
 T = TypeVar("T", bound=ResourceItem)
@@ -35,14 +34,21 @@ T = TypeVar("T", bound=ResourceItem)
 MISSING = object()
 
 
-def serialize_object(data, serializer: Type = None) -> ResourceItem | ItemList[ResourceItem]:
-    kind = data["kind"]
+def serialize_object(
+    data, serializer: Optional[Type[ResourceItem] | Callable] = None
+) -> ResourceItem | ItemList[ResourceItem]:
+    if serializer and not isinstance(serializer, Type):
+        try:
+            return serializer(data)
+        except TypeError:
+            return serializer(data, data)
+    kind = data.get("kind", "")
     is_list = False
     if kind.endswith("List") and "items" in data:
         kind = kind[:-4]
         is_list = True
 
-    api_version = data["apiVersion"]
+    api_version = data.get("apiVersion", "v1")
 
     obj_type = serializer or get_type(kind, api_version, ResourceItem)
 
@@ -61,7 +67,7 @@ def meta_request(func):
 
     def inner(self, *args, **kwargs):
         serialize = kwargs.pop("serialize", True)
-        serializer = kwargs.pop("serializer", ResourceValue)
+        serializer = kwargs.pop("serializer", None)
         response = func(self, *args, **kwargs)
         if not response:
             return None
@@ -443,7 +449,7 @@ class K8sClient(object):
             raise EventTimeoutError(result.message, last=last)
         raise EventTimeoutError(f"Timed out waiting for check on {self.kind} {name} .", last=last)
 
-    def stream(self, method, name=None, namespace=MISSING, *args, **kwargs):
+    def stream(self, func: Callable, name=None, namespace=MISSING, *args, **kwargs):
         from kubernetes.stream.ws_client import WSResponse, websocket_call
 
         prev_request = self.client.request
@@ -455,7 +461,7 @@ class K8sClient(object):
                 return WSResponse("%s" % "".join(ws_client.read_all()))  # type: ignore
 
             self.client.request = _websocket_call
-            return method(
+            return func(
                 *args,
                 name=name,
                 namespace=namespace,
@@ -468,7 +474,7 @@ class K8sClient(object):
             self.client.request = prev_request
 
     @meta_request
-    def request(self, method, path, body=None, **params) -> Any:
+    def request(self, method: str, path: str, body=None, **params) -> Any:
         if not path.startswith("/"):
             path = "/" + path
 

@@ -21,7 +21,7 @@ class ResourceValue(pydantic.BaseModel):
         definition: dict[str, Any] | ResourceValue | None = None,
         **kwargs,
     ):
-        final_def = self.merge_definition_with_kwargs(definition, **kwargs)
+        final_def = ResourceValue.merge_definition_with_kwargs(definition, **kwargs)
         super().__init__(**final_def)
 
     @classmethod
@@ -92,3 +92,7 @@ class ResourceValue(pydantic.BaseModel):
 
     def __contains__(self, m):
         return m in self.__dict__
+
+    def pop(self, key, default):
+        """Same as dict.pop."""
+        return self.__dict__.pop(key, default)

@@ -170,7 +170,7 @@ class ResourceApi(Protocol[R]):
     def validate(self, definition: dict, version: Optional[str] = None, strict: bool = False) -> Tuple[List, List]:
         ...  # pragma: no cover
 
-    def path(self, name=None, namespace=None):
+    def path(self, name=None, namespace=None) -> str:
         ...  # pragma: no cover
 
     def __getattr__(self, name) -> ResourceApi:

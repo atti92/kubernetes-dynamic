@@ -70,7 +70,7 @@ def get_default(name: str):
     return getattr(all, name)()
 
 
-def get_type(kind: str, version: str, default: Any = None):
+def get_type(kind: str, version: str, default: Any = None) -> Any:
     from . import all
 
     return all.mapping.get(kind, {}).get(version, default)
