@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import UserList
 from datetime import datetime
-from typing import Any, Dict, List, Optional, TypeVar
+from typing import Any, Dict, Generic, Iterator, List, Optional, TypeVar
 
 import pydantic
 from pydantic import Field
@@ -56,12 +56,21 @@ class V1ListMeta(ResourceValue):
     selfLink: Optional[str] = None
 
 
-class ItemList(UserList[R]):
+class ItemList(UserList, Generic[R]):
     metadata: V1ListMeta = Field(default_factory=V1ListMeta)
 
     def __init__(self, initlist, metadata):
         self.metadata = pydantic.parse_obj_as(V1ListMeta, metadata)
         super().__init__(initlist)
+
+    def pop(self) -> R:
+        return super().pop()
+
+    def __getitem__(self, index) -> R:
+        return super().__getitem__(index)
+
+    def __iter__(self) -> Iterator[R]:
+        return super().__iter__()
 
 
 def get_default(name: str):
