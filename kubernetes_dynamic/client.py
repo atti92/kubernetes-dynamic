@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from types import NoneType
 from typing import Any, Callable, List, Optional, Type, TypeVar, overload
 
+import kubernetes.stream.ws_client as ws_client
 import pydantic
 import yaml
 
@@ -73,8 +73,11 @@ def meta_request(func):
             return None
         if not serialize:
             return response
-        data = json.loads(response.data)
-        return serialize_object(data, serializer)
+        try:
+            data = json.loads(response.data)
+            return serialize_object(data, serializer)
+        except json.JSONDecodeError:
+            return response.data
 
     return inner
 
@@ -227,7 +230,7 @@ class K8sClient(object):
     def get_api(
         self,
         name: Optional[str] = None,
-        object_type: NoneType = None,
+        object_type: None = None,
         api_version: Optional[str] = None,
         kind: Optional[str] = None,
         **filter_dict,
@@ -449,77 +452,63 @@ class K8sClient(object):
             raise EventTimeoutError(result.message, last=last)
         raise EventTimeoutError(f"Timed out waiting for check on {self.kind} {name} .", last=last)
 
-    def stream(self, func: Callable, name=None, namespace=MISSING, *args, **kwargs):
-        from kubernetes.stream.ws_client import WSResponse, websocket_call
-
+    def websocket(self, func: Callable, name=None, namespace=MISSING, *args, **kwargs) -> ws_client.WSClient:
         prev_request = self.client.request
         try:
 
-            def _websocket_call(*args, **kwargs):  # pragma: no cover
-                ws_client = websocket_call(self.configuration, *args, **kwargs)
-                ws_client.run_forever(timeout=kwargs.get("_request_timeout", 0))  # type: ignore
-                return WSResponse("%s" % "".join(ws_client.read_all()))  # type: ignore
+            def _websocket(*args, **kwargs):  # pragma: no cover
+                try:
+                    client = ws_client.websocket_call(self.configuration, *args, **kwargs)
+                except Exception as e:
+                    raise e
+                return client
 
-            self.client.request = _websocket_call
+            self.client.request = _websocket
             return func(
                 *args,
                 name=name,
                 namespace=namespace,
-                query_params=[(k, v) for k, v in kwargs.items()],
+                query_params=[(k, v) for k, v in kwargs.items() if v is not None],
                 _preload_content=True,
                 serialize=False,
-            ).data
-
+            )
         finally:
             self.client.request = prev_request
+
+    def stream(self, func: Callable, name=None, namespace=MISSING, *args, **kwargs) -> str:
+        client = self.websocket(func, name, namespace, *args, **kwargs)
+        client.run_forever(timeout=kwargs.get("_request_timeout", 0))  # type: ignore
+        return ws_client.WSResponse("%s" % "".join(client.read_all())).data
 
     @meta_request
     def request(self, method: str, path: str, body=None, **params) -> Any:
         if not path.startswith("/"):
             path = "/" + path
 
-        path_params = params.get("path_params", {})
-        query_params = params.get("query_params", [])
-        options = (
-            "_continue",
-            "pretty",
-            "include_uninitialized",
-            "field_selector",
-            "label_selector",
-            "limit",
-            "resource_version",
-            "timeout_seconds",
-            "watch",
-            "grace_period_seconds",
-            "propagation_policy",
-            "orphan_dependents",
-            "dry_run",
-            "field_manager",
-            "force_conflicts",
-        )
-        for key in options:
-            if params.get(key):
-                query_params.append((key.lstrip("_"), params[key]))
+        path_params = params.pop("path_params", {})
+        query_params = params.pop("query_params", [])
 
-        header_params = params.get("header_params", {})
+        header_params = params.pop("header_params", {})
         form_params = []
         local_var_files = {}
 
         # Checking Accept header.
         new_header_params = dict((key.lower(), value) for key, value in header_params.items())
         if "accept" not in new_header_params:
-            header_params["Accept"] = self.client.select_header_accept(
-                [
-                    "application/json",
-                    "application/yaml",
-                ]
-            )
+            header_params["Accept"] = self.client.select_header_accept(["application/json", "application/yaml"])
 
         # HTTP header `Content-Type`
-        header_params["Content-Type"] = params.get("content_type", self.client.select_header_content_type(["*/*"]))
+        header_params["Content-Type"] = params.pop("content_type", self.client.select_header_content_type(["*/*"]))
+        async_req = params.pop("async_req", False)
+        _return_http_data_only = params.pop("_return_http_data_only", True)
+        _request_timeout = params.pop("_request_timeout", None)
 
         # Authentication setting
         auth_settings = ["BearerToken"]
+
+        for key, value in params.items():
+            if value is not None:
+                query_params.append((key.lstrip("_"), value))
 
         api_response = self.client.call_api(
             path,
@@ -529,14 +518,14 @@ class K8sClient(object):
             header_params,
             body=body,
             post_params=form_params,
-            async_req=params.get("async_req"),
+            async_req=async_req,
             files=local_var_files,
             auth_settings=auth_settings,
             _preload_content=False,
-            _return_http_data_only=params.get("_return_http_data_only", True),
-            _request_timeout=params.get("_request_timeout"),
+            _return_http_data_only=_return_http_data_only,
+            _request_timeout=_request_timeout,
         )
-        return api_response.get() if params.get("async_req") else api_response  # type: ignore
+        return api_response.get() if async_req else api_response  # type: ignore
 
     def apply(
         self,

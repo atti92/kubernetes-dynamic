@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import typing
-from types import NoneType
 from typing import (
     Any,
     Iterator,
@@ -109,7 +108,7 @@ class ResourceApi(Protocol[R]):
     @overload
     def delete(
         self,
-        name: NoneType = None,
+        name: None = None,
         namespace: Optional[str] = None,
         body: Optional[dict | R] = None,
         label_selector: Optional[str] = None,

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterator, Optional
 
 from pydantic import Field
+from urllib3 import HTTPResponse
 
 from .common import get_default
 from .resource_item import ResourceItem
@@ -58,6 +59,38 @@ class V1Pod(ResourceItem):
             tty=tty,
         )
         return response
+
+    def logs(
+        self,
+        container: Optional[str] = None,
+        follow: Optional[bool] = None,
+        insecure: Optional[bool] = None,
+        limit: Optional[int] = None,
+        pretty: Optional[bool] = None,
+        previous: Optional[bool] = None,
+        since_seconds: Optional[int] = None,
+        tail_lines: Optional[int] = None,
+        timestamps: Optional[bool] = None,
+    ) -> Iterator[str]:
+        """Get pod logs."""
+        response: HTTPResponse = self.client.pods.log.get(
+            self.metadata.name,
+            self.metadata.namespace,
+            container=container,
+            follow=follow,
+            insecureSkipTLSVerifyBackend=insecure,
+            limitBytes=limit,
+            pretty=pretty,
+            previous=previous,
+            sinceSeconds=since_seconds,
+            tailLines=tail_lines,
+            timestamps=timestamps,
+            serialize=False,
+            stream=True,
+        )  # type: ignore
+        for data in response.stream():
+            for line in data.splitlines():
+                yield line.decode().strip()
 
     def disk_usage(self, container: str = "") -> dict[str, dict[str, int]]:
         """Get disc usage on a pod's container."""

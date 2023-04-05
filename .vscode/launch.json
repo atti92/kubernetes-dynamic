@@ -13,11 +13,11 @@
           "args": [],
           "justMyCode": false,
           // "console": "internalConsole",
-          "cwd": "${workspaceFolder}/pytests",
+          "cwd": "${workspaceFolder}",
           "presentation": {
               "hidden": true,
               "group": "",
               "order": 1
           }
-      }
+  }]
 }
