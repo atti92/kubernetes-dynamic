@@ -282,7 +282,7 @@ class K8sClient(object):
     def events_events(self) -> ResourceApi[models.EventsV1Event]:
         return self.get_api("events", object_type=models.EventsV1Event, api_version="events.k8s.io/v1")
 
-    def ensure_namespace_param(self, resource, namespace, body=None) -> Optional[str]:
+    def ensure_namespace_param(self, resource, namespace, body=None, allow_all=False) -> Optional[str]:
         if not resource.namespaced:
             return None
         if namespace is MISSING:
@@ -290,7 +290,7 @@ class K8sClient(object):
                 namespace = body.get("metadata", {}).get("namespace", self.config.namespace)
             else:
                 namespace = self.config.namespace
-        if not namespace:
+        if not allow_all and not namespace:
             raise ValueError("Namespace is required for {}.{}".format(resource.group_version, resource.kind))
         return namespace
 
@@ -311,7 +311,7 @@ class K8sClient(object):
         return body or {}
 
     def read(self, resource: ResourceApi, name=None, namespace=MISSING, **kwargs):
-        namespace = self.ensure_namespace_param(resource, namespace)
+        namespace = self.ensure_namespace_param(resource, namespace, allow_all=not name)
         path = resource.path(name=name, namespace=namespace)
         return self.request("get", path, **kwargs)
 
@@ -323,7 +323,7 @@ class K8sClient(object):
 
     def find(self, resource: ResourceApi, pattern, namespace=MISSING, **kwargs):
         items = []
-        data = self.get(resource, namespace=namespace, **kwargs)
+        data: Optional[ItemList[ResourceItem]] = self.get(resource, namespace=namespace, **kwargs)
         if not data:
             return items
         for item in data:
@@ -350,7 +350,7 @@ class K8sClient(object):
         if not (name or label_selector or field_selector):
             raise ValueError("At least one of name|label_selector|field_selector is required")
         if resource.namespaced and not (label_selector or field_selector):
-            namespace = self.ensure_namespace_param(resource, namespace)
+            namespace = self.ensure_namespace_param(resource, namespace, allow_all=not name)
         path = resource.path(name=name, namespace=namespace)
         return self.request(
             "delete", path, body=body, label_selector=label_selector, field_selector=field_selector, **kwargs
@@ -397,7 +397,7 @@ class K8sClient(object):
         timeout=None,
         watcher=None,
     ):
-        namespace = self.ensure_namespace_param(resource, namespace)
+        namespace = self.ensure_namespace_param(resource, namespace, allow_all=True)
         if name:
             field_selector = field_selector or ""
             field_selector += f",metadata.name={name}"
