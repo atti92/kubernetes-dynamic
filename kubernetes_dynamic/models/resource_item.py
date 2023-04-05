@@ -65,6 +65,9 @@ class ResourceItem(ResourceValue):
         self._api: Optional[ResourceApi] = None
         self._client = client
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}(name={self.metadata.name}, namespace={self.metadata.namespace})"
+
     @classmethod
     def get_defaults(cls):
         """Get some default values based on the class."""

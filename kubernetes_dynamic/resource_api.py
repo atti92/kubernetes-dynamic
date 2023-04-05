@@ -52,21 +52,33 @@ class ResourceApi(Protocol[R]):
     @overload
     def read(
         self,
-        name: None = None,
-        namespace: Optional[str] = None,
         *,
+        namespace: Optional[str] = None,
         label_selector: Optional[str] = None,
         field_selector: Optional[str] = None,
         **kwargs,
     ) -> ItemList[R]:
+        """Get a list of models.
+        Setting namespace to `None` or `""` will yield from all namespaces.
+
+        Args:
+            namespace: namespace of the resource. Defaults to `current` set to None/Empty for all.
+            label_selector: Label selectors to use for query.
+            field_selector: Field selectors to use for query.
+        """
         ...  # pragma: no cover
 
     @overload
     def read(self, name: str, namespace: Optional[str] = None, **kwargs) -> R:
-        ...  # pragma: no cover
+        """Get a resource model.
 
-    @overload
-    def read(self, name: str, namespace: Optional[str] = None, **kwargs) -> R:
+        Args:
+            name: name of the resource you want to query.
+            namespace: namespace of the resource. Defaults to `current`.
+
+        Raises:
+            NotFoundError: When the model does not exists.
+        """
         ...  # pragma: no cover
 
     def read(self, name: Optional[str] = None, namespace: Optional[str] = None, **kwargs) -> R | ItemList[R]:
@@ -75,27 +87,45 @@ class ResourceApi(Protocol[R]):
     @overload
     def get(
         self,
-        name: None = None,
-        namespace: Optional[str] = None,
         *,
+        namespace: Optional[str] = None,
         label_selector: Optional[str] = None,
         field_selector: Optional[str] = None,
         **kwargs,
     ) -> ItemList[R]:
+        """Get a list of models.
+        Setting namespace to `None` or `""` will yield from all namespaces.
+
+        Args:
+            namespace: namespace of the resource. Defaults to `current` set to None/Empty for all.
+            label_selector: Label selectors to use for query.
+            field_selector: Field selectors to use for query.
+        """
         ...  # pragma: no cover
 
     @overload
     def get(self, name: str, namespace: Optional[str] = None, **kwargs) -> Optional[R]:
-        ...  # pragma: no cover
+        """Get a resource model.
 
-    @overload
-    def get(self, name: str, namespace: Optional[str] = None, **kwargs) -> Optional[R]:
+        Args:
+            name: name of the resource you want to query.
+            namespace: namespace of the resource. Defaults to `current`.
+        """
         ...  # pragma: no cover
 
     def get(self, name: Optional[str] = None, namespace: Optional[str] = None, **kwargs) -> Optional[R] | ItemList[R]:
         return self.client.get(self, name, namespace, **kwargs)  # pragma: no cover
 
     def find(self, pattern: str, namespace: Optional[str] = None, **kwargs) -> list[R]:
+        """Find a list of models.
+        Setting namespace to `None` or `""` will yield from all namespaces.
+
+        Args:
+            pattern: regex pattern for metadata.name.
+            namespace: namespace of the resource. Defaults to `current` set to None/Empty for all.
+            label_selector: Label selectors to use for query.
+            field_selector: Field selectors to use for query.
+        """
         return self.client.find(self, pattern, namespace, **kwargs)  # pragma: no cover
 
     def create(self, body: dict | R, namespace: Optional[str] = None, **kwargs) -> R:
@@ -108,7 +138,7 @@ class ResourceApi(Protocol[R]):
     @overload
     def delete(
         self,
-        name: None = None,
+        *,
         namespace: Optional[str] = None,
         body: Optional[dict | R] = None,
         label_selector: Optional[str] = None,
