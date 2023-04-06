@@ -10,11 +10,12 @@ from typing_extensions import Self
 from kubernetes_dynamic.events import Event, EventType
 
 from ..exceptions import NotFoundError
-from ..resource_api import ResourceApi
 from .common import V1ObjectMeta
 from .resource_value import ResourceValue
 
 if typing.TYPE_CHECKING:
+    from kubernetes_dynamic.kube.resource_api import ResourceApi
+
     from ..client import K8sClient
 
 
@@ -42,8 +43,8 @@ class ResourceItem(ResourceValue):
     metadata: V1ObjectMeta = pydantic.Field(default_factory=V1ObjectMeta)
     status: ResourceValue = pydantic.Field(default_factory=ResourceValue)
 
-    _client: Optional[K8sClient] = pydantic.PrivateAttr()
-    _api: Optional[ResourceApi] = pydantic.PrivateAttr()
+    _client_instance: Optional[K8sClient] = pydantic.PrivateAttr()
+    _api_instance: Optional[ResourceApi] = pydantic.PrivateAttr()
 
     def __init__(
         self,
@@ -62,8 +63,8 @@ class ResourceItem(ResourceValue):
 
         super().__init__(**final_def)
 
-        self._api: Optional[ResourceApi] = None
-        self._client = client
+        self._api_instance: Optional[ResourceApi] = None
+        self._client_instance = client
 
     def __repr__(self):
         return f"{self.__class__.__name__}(name={self.metadata.name}, namespace={self.metadata.namespace})"
@@ -84,18 +85,22 @@ class ResourceItem(ResourceValue):
         return values
 
     @property
-    def api(self) -> ResourceApi:
+    def _api(self) -> ResourceApi:
         """Get resource api."""
-        if not self._api or self._api.api_version != self.apiVersion or self._api.kind != self.kind:
-            self._api = self.client.get_api(kind=self.kind, api_version=self.apiVersion)
-        return self._api
+        if (
+            not self._api_instance
+            or self._api_instance.api_version != self.apiVersion
+            or self._api_instance.kind != self.kind
+        ):
+            self._api_instance = self._client.get_api(kind=self.kind, api_version=self.apiVersion)
+        return self._api_instance
 
     @property
-    def client(self) -> K8sClient:
+    def _client(self) -> K8sClient:
         """Get resource api."""
-        if not self._client:
-            self._client = self.default_client()
-        return self._client
+        if not self._client_instance:
+            self._client_instance = self.default_client()
+        return self._client_instance
 
     @classmethod
     def default_client(cls) -> K8sClient:
@@ -104,28 +109,28 @@ class ResourceItem(ResourceValue):
 
         return K8sClient()
 
-    def refresh(self) -> Self:
+    def refresh_(self) -> Self:
         """Refreshes the local instance with kubernetes data."""
-        data = self.read()
+        data = self.read_()
         if data is None:
             raise NotFoundError(self)
         return self._update_attrs(data)
 
-    def patch(self) -> Self:
+    def patch_(self) -> Self:
         """Updates the Kubernetes resource."""
-        return self._update_attrs(self.api.patch(name=self.metadata.name, body=self))
+        return self._update_attrs(self._api.patch(name=self.metadata.name, body=self))
 
-    def create(self) -> Self:
+    def create_(self) -> Self:
         """Creates the object in Kubernetes."""
-        return self._update_attrs(self.api.create(self))
+        return self._update_attrs(self._api.create(self))
 
-    def read(self) -> Optional[Self]:
+    def read_(self) -> Optional[Self]:
         """Reads the object in Kubernetes."""
-        return self.api.get(self.metadata.name, self.metadata.namespace)
+        return self._api.get(self.metadata.name, self.metadata.namespace)
 
-    def delete(self) -> Self:
+    def delete_(self) -> Self:
         """Deletes the object from Kubernetes."""
-        return self.api.delete(self.metadata.name, self.metadata.namespace)
+        return self._api.delete(self.metadata.name, self.metadata.namespace)
 
     @staticmethod
     def check_object_conditions(item: ResourceItem) -> CheckResult:
@@ -175,7 +180,7 @@ class ResourceItem(ResourceValue):
     def is_ready(self, refresh: bool = False) -> CheckResult:
         """Check if the resource data successfully satisfies the ready state."""
         if refresh:
-            self.refresh()
+            self.refresh_()
         return self.check_object_is_ready(self)
 
     def wait_until_status(self, status: str, timeout: int = 30) -> Event:
@@ -221,8 +226,7 @@ class ResourceItem(ResourceValue):
         )
 
     def wait_until(self, check: Callable[[Event], CheckResult], timeout: int = 30, **kwargs) -> Event:
-        return self.client.wait_until(
-            self.api,
+        return self.api.wait_until(
             check=check,
             timeout=timeout,
             **kwargs,

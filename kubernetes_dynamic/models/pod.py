@@ -47,8 +47,8 @@ class V1Pod(ResourceItem):
         tty: bool = True,
     ) -> str:
         """Run command on pod."""
-        response = self.client.stream(
-            self.client.pods.exec.get,  # type: ignore
+        response = self._client.stream(
+            self._api.exec.get,  # type: ignore
             self.metadata.name,
             self.metadata.namespace,
             container=container,
@@ -73,7 +73,7 @@ class V1Pod(ResourceItem):
         timestamps: Optional[bool] = None,
     ) -> Iterator[str]:
         """Get pod logs."""
-        response: HTTPResponse = self.client.pods.log.get(
+        response: HTTPResponse = self._api.log.get(
             self.metadata.name,
             self.metadata.namespace,
             container=container,

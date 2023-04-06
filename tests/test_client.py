@@ -1,23 +1,17 @@
 from typing import Any
 from unittest.mock import MagicMock
 
-import pydantic
 import pytest
-from kubernetes.config import ConfigException
 
 from kubernetes_dynamic._kubernetes import ResourceApi
-from kubernetes_dynamic.client import (
-    ConflictError,
-    K8sClient,
-    NotFoundError,
-    ResourceNotUniqueError,
-    UnprocessibleEntityError,
-)
-from kubernetes_dynamic.events import Event
+from kubernetes_dynamic.client import K8sClient
 from kubernetes_dynamic.exceptions import InvalidParameter
 from kubernetes_dynamic.formatters import format_selector
+from kubernetes_dynamic.kube.exceptions import (
+    ConfigException,
+    ResourceNotUniqueError,
+)
 from kubernetes_dynamic.models.pod import V1Pod
-from kubernetes_dynamic.models.resource_value import ResourceValue
 
 
 def resource_api(namespaced=True, obj_type=None):
@@ -91,7 +85,7 @@ def test_k8s_client_get_api(
     if name:
         filter_dict["name"] = name
     assert api == mock_resources.get.return_value
-    assert api._resource_type == V1Pod
+    assert api.resource_type == V1Pod
     mock_resources.get.assert_called_with(**filter_dict)
 
 
@@ -131,7 +125,7 @@ def test_k8s_client_get_api_not_unique(
     if name:
         filter_dict["name"] = name
     assert api == mock_resources.search.return_value[2]
-    assert api._resource_type == V1Pod
+    assert api.resource_type == V1Pod
     mock_resources.search.assert_called_with(**filter_dict)
     mock_resources.get.assert_called_with(**filter_dict)
 
@@ -165,115 +159,10 @@ def test_k8s_client_format_selector(selector, output: str):
     assert format_selector(selector) == output
 
 
-def test_k8s_client_get(mock_request: MagicMock):
-    """Test get method."""
-    mock_request.return_value = fake_pod()
-    assert K8sClient().get(resource_api(), "name", "namespace") == fake_pod()
-
-    mock_request.side_effect = NotFoundError(MagicMock())
-    assert K8sClient().get(resource_api(), "name", "namespace") is None
-
-
-def test_find(mock_request: MagicMock):
-    """Test generic find method."""
-    pods = fake_pods()
-    mock_request.return_value = pods
-    assert K8sClient().find(resource_api(), "pod-.*", "namespace") == pods
-
-    mock_request.side_effect = [pods]
-    assert K8sClient().find(resource_api(), "something.*", "namespace") == []
-
-
-def test_k8s_client_get_clusterwide(mock_request: MagicMock):
-    mock_request.return_value = fake_pod()
-    assert K8sClient().get(resource_api(namespaced=False), "name", "namespace") == fake_pod()
-
-
-def test_k8s_client_get_kwarg_namespace(mock_request: MagicMock):
-    mock_request.return_value = fake_pod()
-    assert K8sClient().get(resource_api(), "name", namespace="namespace") == fake_pod()
-
-
-def test_k8s_client_get_404(mock_request: MagicMock):
-    mock_request.side_effect = (NotFoundError(fake_pod()),)
-    assert K8sClient().get(resource_api(), "name", "namespace") is None
-
-
-def test_k8s_client_create(mock_request: MagicMock):
-    mock_request.return_value = fake_pod()
-    assert K8sClient().create(resource_api(), MagicMock(), "namespace") == fake_pod()
-
-
-def test_k8s_client_delete(mock_request: MagicMock):
-    mock_request.return_value = fake_pod()
-    assert (
-        K8sClient().delete(resource_api(), "name", "namespace", MagicMock(), "label_selector", "field_selector")
-        == fake_pod()
-    )
-
-
-def test_k8s_client_replace(mock_request: MagicMock):
-    mock_request.return_value = fake_pod()
-    assert (
-        K8sClient().replace(
-            resource_api(),
-            MagicMock(),
-            "name",
-            "namespace",
-        )
-        == fake_pod()
-    )
-
-
-def test_k8s_client_patch(mock_request: MagicMock):
-    mock_request.return_value = fake_pod()
-    assert (
-        K8sClient().patch(
-            resource_api(),
-            MagicMock(),
-            "name",
-            "namespace",
-        )
-        == fake_pod()
-    )
-
-
-def test_k8s_client_server_side_apply(mock_request: MagicMock):
-    mock_request.return_value = fake_pod()
-    assert K8sClient().server_side_apply(resource_api(), MagicMock(), "name", "namespace", True) == fake_pod()
-
-
-def test_k8s_client_watch(mock_request: MagicMock):
-    resp = MagicMock()
-    resp.__iter__.return_value = [
-        '{"type": "ADDED", "object": {"apiVersion": "v1", "kind": "A", "data": 1}}',
-        '{"type": "DELETED", "object": {"apiVersion": "v1", "kind": "A", "data": 1}}',
-        '{"type": "MODIFIED", "object": {"apiVersion": "v1", "kind": "A", "data": 1}}',
-        '{"type": "ERROR", "object": {"apiVersion": "v1", "kind": "A", "data": 1}}',
-    ]
-    api = resource_api(obj_type=ResourceValue)
-    api.get.return_value = resp
-    for idx, item in enumerate(
-        K8sClient().watch(
-            api,
-            "namespace",
-            "name",
-            "label_selector",
-            "field_selector",
-            "resource_version",
-            "timeout",
-            None,
-        )
-    ):
-        assert item == pydantic.parse_raw_as(Event, resp.__iter__.return_value[idx])
-        assert isinstance(item.object, ResourceValue)
-        assert item.object.data == 1
-
-
 def test_k8s_client_stream():
     method = MagicMock()
-    method.return_value.data = MagicMock()
-    assert K8sClient().stream(method, "name", "namespace") == method.return_value.data
+    method.return_value.read_all.return_value = "data"
+    assert K8sClient().stream(method, "name", "namespace") == "data"
 
 
 @pytest.mark.parametrize(
@@ -312,18 +201,8 @@ def test_k8s_client_apply(mocker, mock_resources):
     item = {"kind": "Pod", "apiVersion": "v1", "metadata": {"name": "pod-name"}}
     expected = MagicMock()
 
-    pod_api.create.side_effect = [ConflictError(MagicMock(name="pod-name")), expected]
-    pod_api.patch.side_effect = UnprocessibleEntityError(MagicMock(name="pod-name"))
+    pod_api.apply.return_value = expected
 
     cl = K8sClient()
     cl.config.namespace = "my_namespace"
     assert cl.apply(data=item) == [expected]
-
-    item["metadata"]["annotations"] = {}
-    pod_api.create.assert_called_with(body=item, namespace="my_namespace")
-    pod_api.patch.assert_called_with(name="pod-name", body=item, namespace="my_namespace")
-    pod_api.delete.assert_called_with(name="pod-name", namespace="my_namespace")
-
-    pod_api.create.side_effect = [ConflictError(MagicMock(name="pod-name")), expected]
-    pod_api.patch.side_effect = UnprocessibleEntityError(MagicMock(name="pod-name"))
-    assert cl.apply(data=[item]) == [expected]

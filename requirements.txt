@@ -1,2 +1,9 @@
-kubernetes
-pydantic>=1.10.0
+pydantic>=1.10.0,<2.0
+urllib3
+requests-oauthlib
+PyYAML
+oauthlib
+google-auth
+websocket-client
+certifi
+python-dateutil

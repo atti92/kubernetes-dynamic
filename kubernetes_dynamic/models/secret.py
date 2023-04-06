@@ -30,11 +30,11 @@ class V1Secret(ResourceItem):
 
     def exists(self) -> bool:
         """Checks if the secret exists in Kubernetes."""
-        return self.read() is not None
+        return self.read_() is not None
 
     def validate_keys(self) -> Tuple[bool, bool, list]:
         """Validates a secret exists and has the correct format."""
-        secret = self.read()
+        secret = self.read_()
         is_valid = True
         missing_data_keys = []
 

@@ -62,7 +62,7 @@ def test_pod_exec(mock_client):
     pod = V1Pod.parse_obj(dict(metadata={"name": "my_pod", "namespace": "my_namespace"}))
     assert pod.exec("command", "container") == mock_client.stream.return_value
     mock_client.stream.assert_called_with(
-        mock_client.pods.exec.get,
+        pod._api.exec.get,
         "my_pod",
         "my_namespace",
         container="container",

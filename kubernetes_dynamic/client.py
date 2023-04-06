@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 from typing import Any, Callable, List, Optional, Type, TypeVar, overload
 
@@ -13,25 +12,16 @@ import kubernetes_dynamic.models as models
 
 from . import _kubernetes
 from .config import K8sConfig
-from .events import Event, Watch
 from .exceptions import (
     ConfigException,
-    ConflictError,
-    EventTimeoutError,
     InvalidParameter,
-    NotFoundError,
     ResourceNotUniqueError,
-    UnprocessibleEntityError,
 )
-from .formatters import format_selector
+from .kube.resource_api import MISSING, ResourceApi, _Missing
 from .models.common import ItemList, get_type
-from .models.resource_item import CheckResult, ResourceItem
-from .resource_api import ResourceApi
+from .models.resource_item import ResourceItem
 
 T = TypeVar("T", bound=ResourceItem)
-
-
-MISSING = object()
 
 
 def serialize_object(
@@ -270,7 +260,7 @@ class K8sClient(object):
                 for r in self.resources.search(**filter_dict)
                 if r.preferred and isinstance(r, _kubernetes.ResourceApi)
             ][0]
-        api._resource_type = object_type or get_type(str(api.kind), str(api.api_version), ResourceItem)  # type: ignore
+        api.resource_type = object_type or get_type(str(api.kind), str(api.api_version), ResourceItem)  # type: ignore
         return api  # type: ignore
 
     def __getattr__(self, name: str) -> ResourceApi[ResourceItem]:
@@ -281,176 +271,6 @@ class K8sClient(object):
     @property
     def events_events(self) -> ResourceApi[models.EventsV1Event]:
         return self.get_api("events", object_type=models.EventsV1Event, api_version="events.k8s.io/v1")
-
-    def ensure_namespace_param(self, resource, namespace, body=None, allow_all=False) -> Optional[str]:
-        if not resource.namespaced:
-            return None
-        if namespace is MISSING:
-            if body:
-                namespace = body.get("metadata", {}).get("namespace", self.config.namespace)
-            else:
-                namespace = self.config.namespace
-        if not allow_all and not namespace:
-            raise ValueError("Namespace is required for {}.{}".format(resource.group_version, resource.kind))
-        return namespace
-
-    def ensure_name_param(self, resource, name, body=None) -> str:
-        if not name and body:
-            name = body.get("metadata", {}).get("name")
-        if not name:
-            raise ValueError("Name is required for {}.{}".format(resource.group_version, resource.kind))
-        return name
-
-    def serialize_body(self, body):
-        """Serialize body to raw dict so apiserver can handle it
-
-        :param body: kubernetes resource body, current support: Union[Dict, ResourceValue]
-        """
-        if callable(getattr(body, "to_dict", None)):
-            return body.to_dict()
-        return body or {}
-
-    def read(self, resource: ResourceApi, name=None, namespace=MISSING, **kwargs):
-        namespace = self.ensure_namespace_param(resource, namespace, allow_all=not name)
-        path = resource.path(name=name, namespace=namespace)
-        return self.request("get", path, **kwargs)
-
-    def get(self, resource: ResourceApi, name=None, namespace=MISSING, **kwargs):
-        try:
-            return self.read(resource, name, namespace, **kwargs)
-        except NotFoundError:
-            return None
-
-    def find(self, resource: ResourceApi, pattern, namespace=MISSING, **kwargs):
-        items = []
-        data: Optional[ItemList[ResourceItem]] = self.get(resource, namespace=namespace, **kwargs)
-        if not data:
-            return items
-        for item in data:
-            if re.match(pattern, item.metadata.name):
-                items.append(item)
-        return items
-
-    def create(self, resource: ResourceApi, body=None, namespace=MISSING, **kwargs):
-        body = self.serialize_body(body)
-        namespace = self.ensure_namespace_param(resource, namespace, body)
-        path = resource.path(namespace=namespace)
-        return self.request("post", path, body=body, **kwargs)
-
-    def delete(
-        self,
-        resource: ResourceApi,
-        name=None,
-        namespace=MISSING,
-        body=None,
-        label_selector=None,
-        field_selector=None,
-        **kwargs,
-    ):
-        if not (name or label_selector or field_selector):
-            raise ValueError("At least one of name|label_selector|field_selector is required")
-        if resource.namespaced and not (label_selector or field_selector):
-            namespace = self.ensure_namespace_param(resource, namespace, allow_all=not name)
-        path = resource.path(name=name, namespace=namespace)
-        return self.request(
-            "delete", path, body=body, label_selector=label_selector, field_selector=field_selector, **kwargs
-        )
-
-    def replace(self, resource: ResourceApi, body=None, name=None, namespace=MISSING, **kwargs):
-        body = self.serialize_body(body)
-        name = self.ensure_name_param(resource, name, body)
-        namespace = self.ensure_namespace_param(resource, namespace, body)
-        path = resource.path(name=name, namespace=namespace)
-        return self.request("put", path, body=body, **kwargs)
-
-    def patch(self, resource: ResourceApi, body=None, name=None, namespace=MISSING, **kwargs):
-        body = self.serialize_body(body)
-        name = self.ensure_name_param(resource, name, body)
-        namespace = self.ensure_namespace_param(resource, namespace, body)
-
-        content_type = kwargs.pop("content_type", "application/strategic-merge-patch+json")
-        path = resource.path(name=name, namespace=namespace)
-
-        return self.request("patch", path, body=body, content_type=content_type, **kwargs)
-
-    def server_side_apply(
-        self, resource: ResourceApi, body=None, name=None, namespace=MISSING, force_conflicts=None, **kwargs
-    ):
-        body = self.serialize_body(body)
-        name = self.ensure_name_param(resource, name, body)
-        namespace = self.ensure_namespace_param(resource, namespace, body)
-
-        # force content type to 'application/apply-patch+yaml'
-        kwargs.update({"content_type": "application/apply-patch+yaml"})
-        path = resource.path(name=name, namespace=namespace)
-
-        return self.request("patch", path, body=body, force_conflicts=force_conflicts, **kwargs)
-
-    def watch(
-        self,
-        resource: ResourceApi,
-        namespace=MISSING,
-        name=None,
-        label_selector=None,
-        field_selector=None,
-        resource_version=None,
-        timeout=None,
-        watcher=None,
-    ):
-        namespace = self.ensure_namespace_param(resource, namespace, allow_all=True)
-        if name:
-            field_selector = field_selector or ""
-            field_selector += f",metadata.name={name}"
-        watcher = watcher or Watch(self.client, resource._resource_type)
-        if watcher and not resource_version:
-            resource_version = watcher.resource_version
-        return watcher.stream(
-            resource.get,
-            namespace=namespace or self.config.namespace,
-            name=None,
-            field_selector=field_selector,
-            label_selector=label_selector,
-            resource_version=resource_version,
-            serialize=False,
-            timeout_seconds=timeout,
-        )
-
-    def wait_until(
-        self,
-        resource: ResourceApi,
-        *,
-        namespace=MISSING,
-        name=None,
-        check: Callable[[Event], CheckResult],
-        field_selector=None,
-        label_selector=None,
-        timeout: int = 30,
-        **kwargs,
-    ) -> Event:
-        """Wait until a certain custom check returns true for a resource returned by the stream."""
-        namespace = self.ensure_namespace_param(resource, namespace)
-        field_selectors = [] if not field_selector else [format_selector(field_selector)]
-        if name:
-            field_selectors.append(f"metadata.name={name}")
-
-        last = None
-        result = None
-        for event in resource.watch(
-            field_selector=format_selector(field_selectors),
-            label_selector=format_selector(label_selector),
-            timeout=timeout,
-            namespace=namespace,
-            **kwargs,
-        ):
-            last = event
-            result = check(event)
-            if result:
-                return event
-        if last is None:
-            raise EventTimeoutError(f"Timed out waiting for check. {self.kind} {name} not found.", last=last)
-        if result is not None and result.message:
-            raise EventTimeoutError(result.message, last=last)
-        raise EventTimeoutError(f"Timed out waiting for check on {self.kind} {name} .", last=last)
 
     def websocket(self, func: Callable, name=None, namespace=MISSING, *args, **kwargs) -> ws_client.WSClient:
         prev_request = self.client.request
@@ -495,12 +315,10 @@ class K8sClient(object):
         # Checking Accept header.
         new_header_params = dict((key.lower(), value) for key, value in header_params.items())
         if "accept" not in new_header_params:
-            header_params["Accept"] = self.client.select_header_accept(["application/json", "application/yaml"])
+            header_params["Accept"] = "application/json"
 
         # HTTP header `Content-Type`
-        header_params["Content-Type"] = params.pop(
-            "content_type", self.client.select_header_content_type(["application/json"])
-        )
+        header_params["Content-Type"] = params.pop("content_type", "application/json")
         async_req = params.pop("async_req", False)
         _return_http_data_only = params.pop("_return_http_data_only", True)
         _request_timeout = params.pop("_request_timeout", None)
@@ -532,7 +350,7 @@ class K8sClient(object):
     def apply(
         self,
         *,
-        namespace: Optional[str | object] = MISSING,
+        namespace: Optional[str | _Missing] = MISSING,
         file_path: Optional[str | Path] = None,
         data: Optional[dict | list | ResourceItem] = None,
     ) -> list[ResourceItem]:
@@ -552,23 +370,7 @@ class K8sClient(object):
         items = []
         for item in data:
             resource = self.get_api(kind=item["kind"], api_version=item["apiVersion"].split("/")[-1])
-            items.append(self._apply(resource, item, namespace))
+            items.append(resource.apply(item, namespace))
         return items
 
-    def _apply(
-        self, resource: ResourceApi, body: dict | ResourceItem, namespace: Optional[str | object] = MISSING, **kwargs
-    ) -> ResourceItem:
-        namespace = self.ensure_namespace_param(resource, namespace)
-        body["metadata"].setdefault("annotations", {})
-        name = body["metadata"]["name"]
-        try:
-            return resource.create(body=body, namespace=namespace, **kwargs)
-        except ConflictError:
-            pass
-        try:
-            return resource.patch(name=name, body=body, namespace=namespace, **kwargs)
-        except UnprocessibleEntityError:
-            pass
 
-        resource.delete(name=name, namespace=namespace, **kwargs)
-        return resource.create(body=body, namespace=namespace, **kwargs)

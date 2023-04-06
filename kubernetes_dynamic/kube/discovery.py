@@ -21,13 +21,12 @@ from abc import abstractmethod, abstractproperty
 from collections import defaultdict
 from functools import partial
 
-import six
 from urllib3.exceptions import MaxRetryError, ProtocolError
 
 from kubernetes_dynamic import __version__
 
 from .exceptions import NotFoundError, ResourceNotFoundError, ResourceNotUniqueError, ServiceUnavailableError
-from .resource import Resource, ResourceList
+from .resource_api import ResourceApi, ResourceList
 
 DISCOVERY_PREFIX = "apis"
 
@@ -43,8 +42,7 @@ class Discoverer(object):
     def __init__(self, client, cache_file):
         self.client = client
         default_cache_id = self.client.configuration.host
-        if six.PY3:
-            default_cache_id = default_cache_id.encode("utf-8")
+        default_cache_id = default_cache_id.encode("utf-8")
         try:
             default_cachefile_name = "osrcp-{0}.json".format(
                 hashlib.md5(default_cache_id, usedforsecurity=False).hexdigest()
@@ -189,7 +187,7 @@ class Discoverer(object):
             for key in ("prefix", "group", "api_version", "client", "preferred"):
                 resource.pop(key, None)
 
-            resourceobj = Resource(
+            resourceobj = ResourceApi(
                 prefix=prefix,
                 group=group,
                 api_version=version,
@@ -318,7 +316,7 @@ class LazyDiscoverer(Discoverer):
                         rg.resources = self.get_resources_for_api_version(prefix, group, version, rg.preferred)
                         self._cache["resources"][prefix][group][version] = rg
                         self.__update_cache = True
-                    for _, resource in six.iteritems(rg.resources):
+                    for _, resource in rg.resources.items():
                         yield resource
         self.__maybe_write_cache()
 
@@ -431,7 +429,7 @@ class CacheDecoder(json.JSONDecoder):
             return obj
         _type = obj.pop("_type")
         if _type == "Resource":
-            return Resource(client=self.client, **obj)
+            return ResourceApi(client=self.client, **obj)
         elif _type == "ResourceList":
             return ResourceList(self.client, **obj)
         elif _type == "ResourceGroup":

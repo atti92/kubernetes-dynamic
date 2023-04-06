@@ -24,6 +24,6 @@ from .kube.kube_config import (
     KubeConfigLoader,
     _get_kube_config_loader,
 )
-from .kube.resource import Resource as ResourceApi
+from .kube.resource_api import ResourceApi as ResourceApi
 from .openapi_client.api_client import ApiClient
 from .openapi_client.configuration import Configuration

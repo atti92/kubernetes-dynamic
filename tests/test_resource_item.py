@@ -26,11 +26,11 @@ def test_resource_refresh(mock_client):
     item = ResourceItem(metadata={"name": "name", "namespace": "namespace"})
 
     mock_client.get_api.return_value.get.return_value = {"metadata": {"name": "name", "namespace": "namespace"}}
-    assert item.refresh() == item
+    assert item.refresh_() == item
 
     mock_client.get_api.return_value.get.return_value = None
     with pytest.raises(NotFoundError):
-        item.refresh()
+        item.refresh_()
 
 
 def test_resource_is_ready(mock_client, mocker):
@@ -45,7 +45,7 @@ def test_resource_is_ready(mock_client, mocker):
 
 def test_resource_delete(mock_client):
     item = ResourceItem(metadata={"name": "name", "namespace": "namespace"})
-    assert item.delete() == mock_client.get_api.return_value.delete.return_value
+    assert item.delete_() == mock_client.get_api.return_value.delete.return_value
     mock_client.get_api.return_value.delete.assert_called()
 
 

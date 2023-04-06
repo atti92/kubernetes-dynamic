@@ -19,15 +19,15 @@ class V1Namespace(ResourceItem):
 
     def annotate(self, annotations_dict: Dict[str, str]) -> V1Namespace:
         """Add annotation(s) to the namespace."""
-        self.refresh()
+        self.refresh_()
         existing: Dict[str, str] = self.metadata.annotations or {}
         existing.update(annotations_dict)
-        return self.patch()
+        return self.patch_()
 
     @classmethod
     def ensure(cls, name: str) -> V1Namespace:
         item = V1Namespace(metadata=cast(V1ObjectMeta, {"name": name}))
         try:
-            return item.create()
+            return item.create_()
         except ConflictError:
-            return item.refresh()
+            return item.refresh_()
