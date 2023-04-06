@@ -5,10 +5,10 @@ import re
 from pathlib import Path
 from typing import Any, Callable, List, Optional, Type, TypeVar, overload
 
-import kubernetes.stream.ws_client as ws_client
 import pydantic
 import yaml
 
+import kubernetes_dynamic.kube.ws_client as ws_client
 import kubernetes_dynamic.models as models
 
 from . import _kubernetes
@@ -145,7 +145,7 @@ class K8sClient(object):
         cache_file=None,
         discoverer=None,
     ):
-        discoverer = discoverer or _kubernetes.dynamic.LazyDiscoverer
+        discoverer = discoverer or _kubernetes.LazyDiscoverer
         self.config = self.get_config(config_file, config_dict=config_dict, context=context)
         self.client = api_client or _kubernetes.ApiClient(configuration=self.config.configuration)
         self.configuration = self.client.configuration
@@ -268,7 +268,7 @@ class K8sClient(object):
             api = [
                 r
                 for r in self.resources.search(**filter_dict)
-                if r.preferred and isinstance(r, _kubernetes.dynamic.Resource)
+                if r.preferred and isinstance(r, _kubernetes.ResourceApi)
             ][0]
         api._resource_type = object_type or get_type(str(api.kind), str(api.api_version), ResourceItem)  # type: ignore
         return api  # type: ignore
@@ -498,7 +498,9 @@ class K8sClient(object):
             header_params["Accept"] = self.client.select_header_accept(["application/json", "application/yaml"])
 
         # HTTP header `Content-Type`
-        header_params["Content-Type"] = params.pop("content_type", self.client.select_header_content_type(["*/*"]))
+        header_params["Content-Type"] = params.pop(
+            "content_type", self.client.select_header_content_type(["application/json"])
+        )
         async_req = params.pop("async_req", False)
         _return_http_data_only = params.pop("_return_http_data_only", True)
         _request_timeout = params.pop("_request_timeout", None)

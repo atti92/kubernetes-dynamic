@@ -17,14 +17,13 @@ __all__ = [
     "ServiceUnavailableError",
     "ServerTimeoutError",
     "ConfigException",
-    "api_exception"
+    "api_exception",
 ]
 
 
-from kubernetes.config.config_exception import ConfigException
-from kubernetes.dynamic.exceptions import (
-    ApiException,
+from kubernetes_dynamic.kube.exceptions import (
     BadRequestError,
+    ConfigException,
     ConflictError,
     DynamicApiError,
     ForbiddenError,
@@ -42,6 +41,7 @@ from kubernetes.dynamic.exceptions import (
     UnprocessibleEntityError,
     api_exception,
 )
+from kubernetes_dynamic.openapi_client.exceptions import ApiException
 
 
 class InvalidParameter(Exception):

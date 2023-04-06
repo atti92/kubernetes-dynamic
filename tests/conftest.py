@@ -8,7 +8,7 @@ import kubernetes_dynamic._kubernetes
 
 @pytest.fixture(autouse=True)
 def mock_kubernetes(mocker: MockerFixture):
-    mocker.patch("kubernetes_dynamic._kubernetes.dynamic.LazyDiscoverer")
+    mocker.patch("kubernetes_dynamic._kubernetes.LazyDiscoverer")
     api_client = mocker.patch.object(kubernetes_dynamic._kubernetes, "ApiClient", autospec=True)
     api_client.return_value.configuration = MagicMock()
     mocker.patch.object(kubernetes_dynamic._kubernetes.InClusterConfigLoader, "__init__", return_value=None)

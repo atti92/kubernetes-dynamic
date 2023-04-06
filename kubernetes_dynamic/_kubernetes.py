@@ -3,7 +3,8 @@
 
 
 __all__ = [
-    "dynamic",
+    "ResourceApi",
+    "LazyDiscoverer",
     "ApiClient",
     "Configuration",
     "KUBE_CONFIG_DEFAULT_LOCATION",
@@ -15,13 +16,14 @@ __all__ = [
     "_get_kube_config_loader",
 ]
 
-from kubernetes import dynamic
-from kubernetes.client.api_client import ApiClient
-from kubernetes.client.configuration import Configuration
-from kubernetes.config.incluster_config import SERVICE_CERT_FILENAME, SERVICE_TOKEN_FILENAME, InClusterConfigLoader
-from kubernetes.config.kube_config import (
+from .kube.discovery import LazyDiscoverer
+from .kube.incluster_config import SERVICE_CERT_FILENAME, SERVICE_TOKEN_FILENAME, InClusterConfigLoader
+from .kube.kube_config import (
     KUBE_CONFIG_DEFAULT_LOCATION,
     ConfigException,
     KubeConfigLoader,
     _get_kube_config_loader,
 )
+from .kube.resource import Resource as ResourceApi
+from .openapi_client.api_client import ApiClient
+from .openapi_client.configuration import Configuration

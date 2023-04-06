@@ -11,9 +11,11 @@ __all__ = [
     "Event",
     "EventType",
     "Watch",
+    "__version__"
 ]
 
 from . import exceptions, models
+from ._version import __version__
 from .client import K8sClient
 from .config import K8sConfig
 from .events import Event, EventType, Watch
@@ -30,3 +32,4 @@ def __getattr__(name: str):
         cl = K8sClient()
         return cl
     raise AttributeError(name)
+

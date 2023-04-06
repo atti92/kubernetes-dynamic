@@ -3,9 +3,9 @@ from unittest.mock import MagicMock
 
 import pydantic
 import pytest
-from kubernetes import dynamic
 from kubernetes.config import ConfigException
 
+from kubernetes_dynamic._kubernetes import ResourceApi
 from kubernetes_dynamic.client import (
     ConflictError,
     K8sClient,
@@ -118,7 +118,7 @@ def test_k8s_client_get_api_not_unique(
     mock_resources.search.return_value = [
         MagicMock(kind="Pod", api_version="v2", preferred=False),
         MagicMock(kind="Pod", api_version="v1", preferred=True),
-        MagicMock(kind="Pod", api_version="v1", preferred=True, spec=dynamic.Resource),
+        MagicMock(kind="Pod", api_version="v1", preferred=True, spec=ResourceApi),
         MagicMock(kind="Pod", api_version="v4", preferred=False),
     ]
     cl = K8sClient()

@@ -1,8 +1,8 @@
 from unittest.mock import MagicMock
 
 import pytest
-from kubernetes.dynamic.exceptions import NotFoundError
 
+from kubernetes_dynamic.kube.exceptions import NotFoundError
 from kubernetes_dynamic.models.resource_item import CheckResult, ResourceItem
 
 

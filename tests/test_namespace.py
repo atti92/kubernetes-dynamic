@@ -1,7 +1,6 @@
 from unittest.mock import MagicMock
 
-from kubernetes.dynamic.exceptions import ConflictError
-
+from kubernetes_dynamic.kube.exceptions import ConflictError
 from kubernetes_dynamic.models.namespace import V1Namespace
 
 
