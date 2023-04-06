@@ -7,6 +7,7 @@ from kubernetes_dynamic.events import Event, Watch
 from kubernetes_dynamic.exceptions import EventTimeoutError
 from kubernetes_dynamic.formatters import format_selector
 from kubernetes_dynamic.kube.exceptions import ConflictError, NotFoundError, UnprocessibleEntityError
+from kubernetes_dynamic.models.common import get_type
 from kubernetes_dynamic.models.resource_value import ResourceValue
 
 R = TypeVar("R", bound=ResourceValue)
@@ -61,7 +62,9 @@ class ResourceApi(Generic[R]):
         self.categories = categories
         self.subresources = {k: Subresource(self, **v) for k, v in (subresources or {}).items()}
         self.client: K8sClient = client
-        self.resource_type: Optional[Type[R]] = resource_type
+        self.resource_type: Optional[Type[R]] = resource_type or get_type(
+            self.kind, self.api_version, None   # type: ignore
+        )
 
         self.extra_args = kwargs
 

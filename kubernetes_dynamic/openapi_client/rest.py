@@ -12,7 +12,6 @@
 """
 
 
-import io
 import json
 import logging
 import re
@@ -33,31 +32,8 @@ from .exceptions import (
 logger = logging.getLogger(__name__)
 
 
-class RESTResponse(io.IOBase):
-    def __init__(self, resp):
-        self.urllib3_response = resp
-        self.status = resp.status
-        self.reason = resp.reason
-        self.data = resp.data
-
-    def getheaders(self):
-        """Returns a dictionary of the response headers."""
-        return self.urllib3_response.headers
-
-    def getheader(self, name, default=None):
-        """Returns a given response header."""
-        return self.urllib3_response.headers.get(name, default)
-
-
 class RESTClientObject(object):
     def __init__(self, configuration, pools_size=4, maxsize=None):
-        # urllib3.PoolManager will pass all kw parameters to connectionpool
-        # https://github.com/shazow/urllib3/blob/f9409436f83aeb79fbaf090181cd81b784f1b8ce/urllib3/poolmanager.py#L75  # noqa: E501
-        # https://github.com/shazow/urllib3/blob/f9409436f83aeb79fbaf090181cd81b784f1b8ce/urllib3/connectionpool.py#L680  # noqa: E501
-        # maxsize is the number of requests to host that are allowed in parallel  # noqa: E501
-        # Custom SSL certificates and client certificates: http://urllib3.readthedocs.io/en/latest/advanced-usage.html  # noqa: E501
-
-        # cert_reqs
         if configuration.verify_ssl:
             cert_reqs = ssl.CERT_REQUIRED
         else:
@@ -90,7 +66,7 @@ class RESTClientObject(object):
                 key_file=configuration.key_file,
                 proxy_url=configuration.proxy,
                 proxy_headers=configuration.proxy_headers,
-                **addition_pool_args
+                **addition_pool_args,
             )
         else:
             self.pool_manager = urllib3.PoolManager(
@@ -100,7 +76,7 @@ class RESTClientObject(object):
                 ca_certs=configuration.ssl_ca_cert,
                 cert_file=configuration.cert_file,
                 key_file=configuration.key_file,
-                **addition_pool_args
+                **addition_pool_args,
             )
 
     def request(
@@ -153,7 +129,6 @@ class RESTClientObject(object):
         try:
             # For `POST`, `PUT`, `PATCH`, `OPTIONS`, `DELETE`
             if method in ["POST", "PUT", "PATCH", "OPTIONS", "DELETE"]:
-
                 # no content type provided or payload is json
                 if not headers.get("Content-Type") or re.search("json", headers["Content-Type"], re.IGNORECASE):
                     request_body = None
@@ -218,12 +193,6 @@ class RESTClientObject(object):
         except urllib3.exceptions.SSLError as e:
             msg = "{0}\n{1}".format(type(e).__name__, str(e))
             raise ApiException(status=0, reason=msg)
-
-        if _preload_content:
-            r = RESTResponse(r)
-
-            # log response body
-            logger.debug("response body: %s", r.data)
 
         if not 200 <= r.status <= 299:
             if r.status == 401:

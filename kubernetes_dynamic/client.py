@@ -242,7 +242,7 @@ class K8sClient(object):
     def get_api(
         self,
         name: Optional[str] = None,
-        object_type: Optional[Type[T]] = ResourceItem,
+        object_type: Optional[Type[T]] = None,
         api_version: Optional[str] = None,
         kind: Optional[str] = None,
         **filter_dict,
@@ -298,8 +298,8 @@ class K8sClient(object):
 
     def stream(self, func: Callable, name=None, namespace=MISSING, *args, **kwargs) -> str:
         client = self.websocket(func, name, namespace, *args, **kwargs)
-        client.run_forever(timeout=kwargs.get("_request_timeout", 0))  # type: ignore
-        return ws_client.WSResponse("%s" % "".join(client.read_all())).data
+        client.run_forever()  # type: ignore
+        return "".join(client.read_all())
 
     @meta_request
     def request(self, method: str, path: str, body=None, **params) -> Any:
