@@ -9,6 +9,7 @@ import yaml
 
 import kubernetes_dynamic.kube.ws_client as ws_client
 import kubernetes_dynamic.models as models
+from kubernetes_dynamic.formatters import to_lower_camel
 
 from . import _kubernetes
 from .config import K8sConfig
@@ -328,7 +329,7 @@ class K8sClient(object):
 
         for key, value in params.items():
             if value is not None:
-                query_params.append((key.lstrip("_"), value))
+                query_params.append((to_lower_camel(key.lstrip("_")), value))
 
         api_response = self.client.call_api(
             path,
@@ -372,5 +373,3 @@ class K8sClient(object):
             resource = self.get_api(kind=item["kind"], api_version=item["apiVersion"].split("/")[-1])
             items.append(resource.apply(item, namespace))
         return items
-
-

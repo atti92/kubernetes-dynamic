@@ -6,11 +6,11 @@
   "configurations": [
       {
           "name": "Debug tests",
-          "type": "python",
-          "request": "launch",
+          // "type": "python",
+          // "request": "launch",
           // "module": "pytest",
           "purpose": ["debug-test", "debug-in-terminal"],
-          "args": [],
+          // "args": [],
           "justMyCode": false,
           // "console": "internalConsole",
           "cwd": "${workspaceFolder}",

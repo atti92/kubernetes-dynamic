@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Iterator, Optional
 
+from more_itertools import first
 from pydantic import Field
 from urllib3 import HTTPResponse
 
@@ -116,3 +117,13 @@ class V1Pod(ResourceItem):
         """Get environment variables from a pod."""
         env = self.exec("env")
         return {item.split("=", 1)[0]: item.split("=", 1)[1] for item in env.splitlines()}
+
+    def get_port(self, port: str | int) -> Optional[int]:
+        """Get the first matching port number with name."""
+        if isinstance(port, int):
+            return first(
+                (p.containerPort for c in self.spec.containers for p in c.ports if p.containerPort == port), None
+            )
+        return first(
+            (p.containerPort for c in self.spec.containers for p in c.ports if p.name == port or not port), None
+        )

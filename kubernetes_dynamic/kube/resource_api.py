@@ -1,16 +1,3 @@
-# Copyright 2019 The Kubernetes Authors.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 from __future__ import annotations
 
 import re
@@ -58,7 +45,6 @@ class ResourceApi(Generic[R]):
         resource_type=None,
         **kwargs,
     ):
-
         if None in (api_version, kind, prefix):
             raise ValueError("At least prefix, kind, and api_version must be provided")
 
@@ -201,6 +187,7 @@ class ResourceApi(Generic[R]):
     ) -> R | ItemList[R]:
         namespace = self.ensure_namespace_param(namespace, allow_all=not name)
         path = self.path(name=name, namespace=namespace)
+        kwargs.setdefault("serializer", self.resource_type)
         return self.client.request("get", path, **kwargs)
 
     @overload
@@ -263,6 +250,7 @@ class ResourceApi(Generic[R]):
         body = self.serialize_body(body)
         namespace = self.ensure_namespace_param(namespace, body)
         path = self.path(namespace=namespace)
+        kwargs.setdefault("serializer", self.resource_type)
         return self.client.request("post", path, body=body, **kwargs)
 
     @overload
@@ -297,6 +285,7 @@ class ResourceApi(Generic[R]):
         if self.namespaced and not (label_selector or field_selector):
             namespace = self.ensure_namespace_param(namespace, allow_all=not name)
         path = self.path(name=name, namespace=namespace)
+        kwargs.setdefault("serializer", self.resource_type)
         return self.client.request(
             "delete", path, body=body, label_selector=label_selector, field_selector=field_selector, **kwargs
         )
@@ -308,6 +297,7 @@ class ResourceApi(Generic[R]):
         name = self.ensure_name_param(name, body)
         namespace = self.ensure_namespace_param(namespace, body)
         path = self.path(name=name, namespace=namespace)
+        kwargs.setdefault("serializer", self.resource_type)
         return self.client.request("put", path, body=body, **kwargs)
 
     def patch(
@@ -319,7 +309,7 @@ class ResourceApi(Generic[R]):
 
         content_type = kwargs.pop("content_type", "application/strategic-merge-patch+json")
         path = self.path(name=name, namespace=namespace)
-
+        kwargs.setdefault("serializer", self.resource_type)
         return self.client.request("patch", path, body=body, content_type=content_type, **kwargs)
 
     def server_side_apply(
@@ -336,7 +326,7 @@ class ResourceApi(Generic[R]):
 
         kwargs.update({"content_type": "application/apply-patch+yaml"})
         path = self.path(name=name, namespace=namespace)
-
+        kwargs.setdefault("serializer", self.resource_type)
         return self.client.request("patch", path, body=body, force_conflicts=force_conflicts, **kwargs)
 
     def watch(

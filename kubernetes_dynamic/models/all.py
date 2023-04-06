@@ -13,9 +13,11 @@ from .configmap import V1ConfigMap
 from .ingress import V1Ingress as V1Ingress
 from .namespace import V1Namespace as V1Namespace
 from .pod import V1Pod as V1Pod
+from .replica_set import V1ReplicaSet as V1ReplicaSet
 from .resource_item import ResourceItem
 from .resource_value import ResourceValue
 from .secret import V1Secret as V1Secret
+from .service import V1Service as V1Service
 from .stateful_set import V1StatefulSet as V1StatefulSet
 
 
@@ -955,12 +957,6 @@ class V1ServiceSpec(ResourceValue):
     type: Optional[str] = None
 
 
-class V1Service(ResourceItem):
-    metadata: V1ObjectMeta = Field(default_factory=lambda: V1ObjectMeta())
-    spec: V1ServiceSpec = Field(default_factory=lambda: V1ServiceSpec())
-    status: V1ServiceStatus = Field(default_factory=lambda: V1ServiceStatus())
-
-
 class V1ResourceRule(ResourceValue):
     apiGroups: List[str] = Field(default_factory=list)
     resourceNames: List[str] = Field(default_factory=list)
@@ -1157,12 +1153,6 @@ class V1ReplicaSetSpec(ResourceValue):
     replicas: Optional[int] = None
     selector: V1LabelSelector = Field(default_factory=lambda: V1LabelSelector())
     template: V1PodTemplateSpec = Field(default_factory=lambda: V1PodTemplateSpec())
-
-
-class V1ReplicaSet(ResourceItem):
-    metadata: V1ObjectMeta = Field(default_factory=lambda: V1ObjectMeta())
-    spec: V1ReplicaSetSpec = Field(default_factory=lambda: V1ReplicaSetSpec())
-    status: V1ReplicaSetStatus = Field(default_factory=lambda: V1ReplicaSetStatus())
 
 
 class V1PriorityClassList(ResourceItem):

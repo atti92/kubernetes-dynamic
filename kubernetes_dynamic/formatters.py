@@ -1,7 +1,7 @@
-
 from typing import Union
 
 SelectorTypes = Union[None, str, dict, list, tuple]
+
 
 def _format_dict_selector(selector: dict):
     items = []
@@ -19,6 +19,7 @@ def _format_dict_selector(selector: dict):
         else:
             items.append(key)
     return format_selector(items)
+
 
 def format_selector(selector: SelectorTypes):
     """Format kubernetes selector.
@@ -44,3 +45,16 @@ def format_selector(selector: SelectorTypes):
     if isinstance(selector, dict):
         return _format_dict_selector(selector)
     return selector
+
+
+def to_camel(string: str) -> str:
+    """Convert snake_case to CamelCase"""
+    return "".join(word.capitalize() for word in string.split("_"))
+
+
+def to_lower_camel(string: str) -> str:
+    """Convert snake_case to lowerCamelCase"""
+    if len(string) >= 1:
+        pascal_string = to_camel(string)
+        return pascal_string[0].lower() + pascal_string[1:]
+    return string.lower()
