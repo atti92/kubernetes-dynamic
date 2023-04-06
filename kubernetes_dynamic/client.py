@@ -10,6 +10,8 @@ import yaml
 import kubernetes_dynamic.kube.ws_client as ws_client
 import kubernetes_dynamic.models as models
 from kubernetes_dynamic.formatters import to_lower_camel
+from kubernetes_dynamic.kube.exceptions import api_exception
+from kubernetes_dynamic.openapi_client.exceptions import ApiException
 
 from . import _kubernetes
 from .config import K8sConfig
@@ -331,21 +333,24 @@ class K8sClient(object):
             if value is not None:
                 query_params.append((to_lower_camel(key.lstrip("_")), value))
 
-        api_response = self.client.call_api(
-            path,
-            method.upper(),
-            path_params,
-            query_params,
-            header_params,
-            body=body,
-            post_params=form_params,
-            async_req=async_req,
-            files=local_var_files,
-            auth_settings=auth_settings,
-            _preload_content=False,
-            _return_http_data_only=_return_http_data_only,
-            _request_timeout=_request_timeout,
-        )
+        try:
+            api_response = self.client.call_api(
+                path,
+                method.upper(),
+                path_params,
+                query_params,
+                header_params,
+                body=body,
+                post_params=form_params,
+                async_req=async_req,
+                files=local_var_files,
+                auth_settings=auth_settings,
+                _preload_content=False,
+                _return_http_data_only=_return_http_data_only,
+                _request_timeout=_request_timeout,
+            )
+        except ApiException as e:
+            raise api_exception(e) from e
         return api_response.get() if async_req else api_response  # type: ignore
 
     def apply(

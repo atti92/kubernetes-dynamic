@@ -19,15 +19,6 @@ class V1Secret(ResourceItem):
 
     _required_keys: Union[tuple, List] = PrivateAttr(default_factory=tuple)
 
-    def __init__(
-        self,
-        *args,
-        required_keys: Union[tuple, List] = (),
-        **kwargs,
-    ):
-        super().__init__(*args, **kwargs)
-        self._required_keys = required_keys
-
     def exists(self) -> bool:
         """Checks if the secret exists in Kubernetes."""
         return self.read_() is not None

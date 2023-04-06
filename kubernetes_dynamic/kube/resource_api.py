@@ -13,6 +13,7 @@ from kubernetes_dynamic.models.resource_value import ResourceValue
 R = TypeVar("R", bound=ResourceValue)
 
 if TYPE_CHECKING:
+    from kubernetes_dynamic import models
     from kubernetes_dynamic.client import K8sClient
     from kubernetes_dynamic.models.common import ItemList
     from kubernetes_dynamic.models.resource_item import CheckResult
@@ -63,7 +64,7 @@ class ResourceApi(Generic[R]):
         self.subresources = {k: Subresource(self, **v) for k, v in (subresources or {}).items()}
         self.client: K8sClient = client
         self.resource_type: Optional[Type[R]] = resource_type or get_type(
-            self.kind, self.api_version, None   # type: ignore
+            self.kind, self.api_version, None  # type: ignore
         )
 
         self.extra_args = kwargs
@@ -139,7 +140,7 @@ class ResourceApi(Generic[R]):
             return None
         if namespace is MISSING:
             if body:
-                namespace = body.get("metadata", {}).get("namespace", self.config.namespace)
+                namespace = body.get("metadata", {}).get("namespace") or self.client.config.namespace
             else:
                 namespace = self.client.config.namespace
         if not allow_all and not namespace:
@@ -251,6 +252,7 @@ class ResourceApi(Generic[R]):
 
     def create(self, body: dict | R, namespace: Optional[str | _Missing] = MISSING, **kwargs) -> R:
         body = self.serialize_body(body)
+        body["metadata"]["resourceVersion"] = None
         namespace = self.ensure_namespace_param(namespace, body)
         path = self.path(namespace=namespace)
         kwargs.setdefault("serializer", self.resource_type)
@@ -259,7 +261,7 @@ class ResourceApi(Generic[R]):
     @overload
     def delete(
         self, name: str, namespace: Optional[str | _Missing] = MISSING, body: Optional[dict | R] = None, **kwargs
-    ) -> R:
+    ) -> models.V1Status:
         ...  # pragma: no cover
 
     @overload
@@ -282,13 +284,16 @@ class ResourceApi(Generic[R]):
         label_selector: Optional[str] = None,
         field_selector: Optional[str] = None,
         **kwargs,
-    ) -> ItemList[R] | R:
+    ) -> ItemList[R] | models.V1Status:
         if not (name or label_selector or field_selector):
             raise ValueError("At least one of name|label_selector|field_selector is required")
         if self.namespaced and not (label_selector or field_selector):
             namespace = self.ensure_namespace_param(namespace, allow_all=not name)
+        if namespace is MISSING:
+            namespace = None
+        if not name:
+            kwargs.setdefault("serializer", self.resource_type)
         path = self.path(name=name, namespace=namespace)
-        kwargs.setdefault("serializer", self.resource_type)
         return self.client.request(
             "delete", path, body=body, label_selector=label_selector, field_selector=field_selector, **kwargs
         )
