@@ -71,6 +71,7 @@ class Watch(object):
         self.resource_version = resource_version or self.resource_version
         self.timeout_seconds = timeout_seconds
         retry_after_410 = False
+        kwargs.pop("serialize", None)
         while not self._stop:
             resp: HTTPResponse = func(
                 *args,
@@ -78,13 +79,14 @@ class Watch(object):
                 watch=watch,
                 _preload_content=_preload_content,
                 timeout_seconds=timeout_seconds or 5,
+                serialize=False,
                 **kwargs,
             )
             try:
                 yield from self._parse_response_iter(resp)
             except ApiException as e:
                 if e.status == 410 and not retry_after_410:
-                    self.resource_version = func(*args, **kwargs).metadata.resourceVersion
+                    self.resource_version = func(*args, serialize=True, **kwargs).metadata.resourceVersion
                     retry_after_410 = True
                     continue
                 raise api_exception(e) from e
@@ -97,7 +99,7 @@ class Watch(object):
     def _parse_response_iter(self, resp: HTTPResponse):
         for line in resp:
             event = pydantic.parse_raw_as(Event, line)
-            if event.type == EventType.ERROR:
+            if event.type == EventType.ERROR.value:
                 raise ApiException(event.object.code)
 
             event.object = self._return_type(event.object)

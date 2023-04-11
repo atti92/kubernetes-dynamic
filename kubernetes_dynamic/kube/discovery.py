@@ -20,6 +20,7 @@ import tempfile
 from abc import abstractmethod, abstractproperty
 from collections import defaultdict
 from functools import partial
+from typing import Any
 
 from urllib3.exceptions import MaxRetryError, ProtocolError
 
@@ -45,7 +46,7 @@ class Discoverer(object):
         default_cache_id = default_cache_id.encode("utf-8")
         try:
             default_cachefile_name = "osrcp-{0}.json".format(
-                hashlib.md5(default_cache_id, usedforsecurity=False).hexdigest()
+                hashlib.md5(default_cache_id, usedforsecurity=False).hexdigest()  # type: ignore
             )
         except TypeError:
             # usedforsecurity is only supported in 3.9+
@@ -60,7 +61,7 @@ class Discoverer(object):
         else:
             try:
                 with open(self.__cache_file, "r") as f:
-                    self._cache = json.load(f, cls=partial(CacheDecoder, self.client))
+                    self._cache: dict[str, Any] = json.load(f, cls=partial(CacheDecoder, self.client))  # type: ignore
                 if self._cache.get("library_version") != __version__:
                     # Version mismatch, need to refresh cache
                     self.invalidate_cache()
@@ -194,7 +195,7 @@ class Discoverer(object):
                 client=self.client,
                 preferred=preferred,
                 subresources=subresources.get(resource["name"]),
-                **resource
+                **resource,
             )
             resources[resource["kind"]].append(resourceobj)
 
@@ -260,7 +261,6 @@ class LazyDiscoverer(Discoverer):
     def __search(self, parts, resources, reqParams):
         part = parts[0]
         if part != "*":
-
             resourcePart = resources.get(part)
             if not resourcePart:
                 return []

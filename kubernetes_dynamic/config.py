@@ -3,8 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, Optional
 
-from . import _kubernetes
 import pydantic
+
+from . import _kubernetes
 
 
 class MutedSecretsSettingsSource:

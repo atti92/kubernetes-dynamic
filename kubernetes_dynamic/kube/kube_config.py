@@ -19,7 +19,6 @@ import datetime
 import json
 import logging
 import os
-import platform
 import subprocess
 import tempfile
 import time
@@ -28,24 +27,25 @@ from collections import namedtuple
 import google.auth
 import google.auth.transport.requests
 import oauthlib.oauth2
+import oauthlib.oauth2.rfc6749.errors
 import urllib3
 import yaml
+from dateutil.parser import parse
+from dateutil.tz import UTC
 from requests_oauthlib import OAuth2Session
 
 from ..openapi_client.api_client import ApiClient
 from ..openapi_client.configuration import Configuration
-from .dateutil import UTC, format_rfc3339, parse_rfc3339
 from .exceptions import ConfigException
 from .exec_provider import ExecProvider
 
 try:
-    import adal
+    import adal  # type: ignore
 except ImportError:
     pass
 
 EXPIRY_SKEW_PREVENTION_DELAY = datetime.timedelta(minutes=5)
 KUBE_CONFIG_DEFAULT_LOCATION = os.environ.get("KUBECONFIG", "~/.kube/config")
-ENV_KUBECONFIG_PATH_SEPARATOR = ";" if platform.system() == "Windows" else ":"
 _temp_files = {}
 
 
@@ -78,7 +78,7 @@ def _create_temp_file_with_content(content, temp_file_path=None):
 
 
 def _is_expired(expiry):
-    return (parse_rfc3339(expiry) - EXPIRY_SKEW_PREVENTION_DELAY) <= datetime.datetime.utcnow().replace(tzinfo=UTC)
+    return (expiry - EXPIRY_SKEW_PREVENTION_DELAY) <= datetime.datetime.utcnow().replace(tzinfo=UTC)
 
 
 class FileOrData(object):
@@ -169,7 +169,7 @@ class CommandTokenSource(object):
         except ValueError as de:
             raise ConfigException("exec: failed to decode process output: %s" % de)
         A = namedtuple("A", ["token", "expiry"])
-        return A(token=data["credential"]["access_token"], expiry=parse_rfc3339(data["credential"]["token_expiry"]))
+        return A(token=data["credential"]["access_token"], expiry=parse(data["credential"]["token_expiry"]))
 
 
 class KubeConfigLoader(object):
@@ -182,7 +182,6 @@ class KubeConfigLoader(object):
         config_persister=None,
         temp_file_path=None,
     ):
-
         if config_dict is None:
             raise ConfigException("Invalid kube-config. " "Expected config_dict to not be None.")
         elif isinstance(config_dict, ConfigNode):
@@ -346,7 +345,7 @@ class KubeConfigLoader(object):
 
         self.token = "Bearer %s" % provider["config"]["access-token"]
         if "expiry" in provider["config"]:
-            self.expiry = parse_rfc3339(provider["config"]["expiry"])
+            self.expiry = parse(provider["config"]["expiry"])
         return self.token
 
     def _refresh_gcp_token(self):
@@ -355,7 +354,7 @@ class KubeConfigLoader(object):
         provider = self._user["auth-provider"]["config"]
         credentials = self._get_google_credentials()
         provider.value["access-token"] = credentials.token
-        provider.value["expiry"] = format_rfc3339(credentials.expiry)
+        provider.value["expiry"] = credentials.expiry.isoformat()
         if self._config_persister:
             self._config_persister()
 
@@ -381,10 +380,7 @@ class KubeConfigLoader(object):
             # https://tools.ietf.org/html/rfc7515#appendix-C
             return
 
-        if PY3:
-            jwt_attributes = json.loads(base64.urlsafe_b64decode(parts[1] + padding).decode("utf-8"))
-        else:
-            jwt_attributes = json.loads(base64.b64decode(parts[1] + padding))
+        jwt_attributes = json.loads(base64.urlsafe_b64decode(parts[1] + padding).decode("utf-8"))
 
         expire = jwt_attributes.get("exp")
 
@@ -488,7 +484,7 @@ class KubeConfigLoader(object):
                 logging.error("exec: missing token or clientCertificateData " "field in plugin output")
                 return None
             if "expirationTimestamp" in status:
-                self.expiry = parse_rfc3339(status["expirationTimestamp"])
+                self.expiry = parse(status["expirationTimestamp"])
             return True
         except Exception as e:
             logging.error(str(e))
@@ -670,7 +666,7 @@ class KubeConfigMerger:
         # doesn't need to do any further merging
 
     def _load_config_from_file_path(self, string):
-        for path in string.split(ENV_KUBECONFIG_PATH_SEPARATOR):
+        for path in string.split(os.pathsep):
             if path:
                 path = os.path.expanduser(path)
                 if os.path.exists(path):
@@ -731,7 +727,6 @@ def _get_kube_config_loader(filename=None, config_dict=None, persist_config=Fals
 
 
 def list_kube_config_contexts(config_file=None):
-
     if config_file is None:
         config_file = KUBE_CONFIG_DEFAULT_LOCATION
 

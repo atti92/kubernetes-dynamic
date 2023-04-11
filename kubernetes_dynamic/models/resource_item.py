@@ -8,9 +8,10 @@ import pydantic
 from typing_extensions import Self
 
 from kubernetes_dynamic.events import Event, EventType
+from kubernetes_dynamic.kube.resource_api import MISSING, _Missing
 
 from ..exceptions import NotFoundError
-from .common import V1ObjectMeta
+from .common import ItemList, V1ObjectMeta
 from .resource_value import ResourceValue
 
 if typing.TYPE_CHECKING:
@@ -108,6 +109,40 @@ class ResourceItem(ResourceValue):
         from ..client import K8sClient
 
         return K8sClient()
+
+    @classmethod
+    def default_api(cls, client: Optional[K8sClient] = None) -> ResourceApi:
+        """Create a default K8sClient."""
+        client = client or cls.default_client()
+        default_values = cls.get_defaults()
+        return client.get_api(kind=default_values["kind"], api_version=default_values["apiVersion"])
+
+    @classmethod
+    def list_(
+        cls,
+        *,
+        namespace: Optional[str | _Missing] = MISSING,
+        label_selector: Optional[str] = None,
+        field_selector: Optional[str] = None,
+        client: Optional[K8sClient] = None,
+        **kwargs,
+    ) -> ItemList[Self]:
+        """Create a default K8sClient."""
+        return cls.default_api(client).get(
+            namespace=namespace, label_selector=label_selector, field_selector=field_selector, **kwargs
+        )
+
+    @classmethod
+    def get_(
+        cls,
+        name: str,
+        *,
+        namespace: Optional[str | _Missing] = MISSING,
+        client: Optional[K8sClient] = None,
+        **kwargs,
+    ) -> Optional[Self]:
+        """Create a default K8sClient."""
+        return cls.default_api(client).get(name, namespace=namespace, **kwargs)
 
     def refresh_(self) -> Self:
         """Refreshes the local instance with kubernetes data."""

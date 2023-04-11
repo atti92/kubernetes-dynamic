@@ -254,6 +254,8 @@ class ResourceApi(Generic[R]):
         body = self.serialize_body(body)
         body["metadata"]["resourceVersion"] = None
         namespace = self.ensure_namespace_param(namespace, body)
+        if namespace:
+            body["metadata"]["namespace"] = namespace
         path = self.path(namespace=namespace)
         kwargs.setdefault("serializer", self.resource_type)
         return self.client.request("post", path, body=body, **kwargs)
@@ -339,8 +341,8 @@ class ResourceApi(Generic[R]):
 
     def watch(
         self,
-        namespace: Optional[str | _Missing] = MISSING,
         name: Optional[str] = None,
+        namespace: Optional[str | _Missing] = MISSING,
         label_selector: Optional[str] = None,
         field_selector: Optional[str] = None,
         resource_version: Optional[str] = None,
@@ -361,7 +363,6 @@ class ResourceApi(Generic[R]):
             field_selector=field_selector,
             label_selector=label_selector,
             resource_version=resource_version,
-            serialize=False,
             timeout_seconds=timeout,
         )
 
